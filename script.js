@@ -347,25 +347,79 @@ function localTimeToUTCMinutes(localTimeIso, timezone) {
   );
 
   try {
-    // 创建本地时间的Date对象
-    const localDate = new Date(localTimeIso);
-    if (isNaN(localDate.getTime())) {
-      console.error(`Invalid date format: ${localTimeIso}`);
+    // 解析时间字符串，获取小时和分钟
+    let timeString = localTimeIso;
+
+    // 处理不同的时间格式
+    if (timeString.includes("T")) {
+      timeString = timeString.split("T")[1]; // 取T后面的时间部分
+    }
+
+    const [hoursStr, minutesStr] = timeString.split(":");
+    const localHours = parseInt(hoursStr, 10);
+    const localMinutes = parseInt(minutesStr, 10);
+
+    if (isNaN(localHours) || isNaN(localMinutes)) {
+      console.error(`Invalid time format: ${localTimeIso}`);
       return 0;
     }
 
-    // 获取UTC时间的小时和分钟
-    const utcHours = localDate.getUTCHours();
-    const utcMinutes = localDate.getUTCMinutes();
-    const totalUTCMinutes = utcHours * 60 + utcMinutes;
+    // 使用简化的时区偏移量计算
+    let utcOffsetHours = 0;
+
+    // 主要时区偏移量 (这是简化版本，实际应用中应该使用更精确的时区库)
+    const timezoneOffsets = {
+      "Asia/Shanghai": 8,
+      "Asia/Tokyo": 9,
+      "Asia/Seoul": 9,
+      "Asia/Kolkata": 5.5,
+      "Europe/London": 0, // GMT
+      "Europe/Berlin": 1,
+      "Europe/Paris": 1,
+      "Europe/Rome": 1,
+      "Europe/Madrid": 1,
+      "Europe/Moscow": 3,
+      "America/New_York": -5, // EST
+      "America/Chicago": -6, // CST
+      "America/Los_Angeles": -8, // PST
+      "America/Toronto": -5,
+      "America/Vancouver": -8,
+      "America/Montreal": -5,
+      "America/Sao_Paulo": -3,
+      "Australia/Sydney": 11,
+      "Australia/Melbourne": 11,
+      "Australia/Brisbane": 10,
+      "Africa/Cape_Town": 2,
+      "Africa/Johannesburg": 2,
+      "America/Nuuk": -3,
+      "Antarctica/McMurdo": 13,
+      "Antarctica/Rothera": -3,
+    };
+
+    utcOffsetHours = timezoneOffsets[timezone] || 0;
+
+    // 将本地时间转换为UTC时间
+    let totalLocalMinutes = localHours * 60 + localMinutes;
+    let totalUTCMinutes = totalLocalMinutes - utcOffsetHours * 60;
+
+    // 确保时间在0-1439范围内（处理跨日期情况）
+    while (totalUTCMinutes < 0) {
+      totalUTCMinutes += 1440; // 加一天
+    }
+    while (totalUTCMinutes >= 1440) {
+      totalUTCMinutes -= 1440; // 减一天
+    }
 
     console.log(
-      `Local ${localTimeIso} -> UTC ${Math.floor(
-        totalUTCMinutes / 60
-      )}:${String(totalUTCMinutes % 60).padStart(
-        2,
-        "0"
-      )} (${totalUTCMinutes} minutes)`
+      `🕐 TIME CONVERSION DEBUG:
+      Input: ${localTimeIso} (timezone: ${timezone})
+      Parsed local time: ${localHours}:${String(localMinutes).padStart(2, "0")}
+      Timezone offset: UTC${utcOffsetHours >= 0 ? "+" : ""}${utcOffsetHours}
+      Local minutes: ${totalLocalMinutes}
+      UTC minutes: ${totalUTCMinutes}
+      Final UTC time: ${Math.floor(totalUTCMinutes / 60)}:${String(
+        totalUTCMinutes % 60
+      ).padStart(2, "0")}`
     );
 
     return totalUTCMinutes; // 0..1439
@@ -570,8 +624,12 @@ async function fetchRealSunTimes(city, year) {
  */
 async function fetchYearSunTimes(city, year) {
   try {
-    // 首先尝试使用Archive API获取真实数据
-    return await fetchRealSunTimes(city, year);
+    // 首先尝试使用Archive API获取真实数据 - COMMENTED OUT FOR TESTING
+    // return await fetchRealSunTimes(city, year);
+
+    // 直接从JSON文件获取数据（测试用）
+    console.log(`🔄 Loading data from JSON fallback for ${city.city}...`);
+    return await fetchFromJsonFallback(city, year);
   } catch (error) {
     console.error(
       `❌ Failed to get real sun times for ${city.city}:`,
@@ -1010,25 +1068,29 @@ function render() {
       return;
     }
 
-    // 夜間判定：需要考虑跨日期的情况
-    // 对于东京等城市，日出时间（如20:30 UTC前一天）会大于日落时间（如09:00 UTC当天）
-    let isNight;
+    // 白天判定：简化逻辑 - 只在日出到日落之间为白天，其他时间都点灯
+    // 但要正确处理跨日期的情况
+    let isDaytime;
     if (sunriseM > sunsetM) {
-      // 跨日期情况：sunrise > sunset (例如：东京 20:30 > 09:00)
-      // 夜间时间：00:00-09:00 和 20:30-23:59
-      isNight = tMin <= sunsetM || tMin >= sunriseM;
+      // 跨日期情况：sunrise > sunset (例如：东京 20:12 UTC > 09:10 UTC)
+      // 这意味着日出在前一天，日落在当天
+      // 实际的白天是：从日出到午夜，然后从午夜到日落
+      // 即：tMin >= sunriseM (当天晚上) 或 tMin <= sunsetM (第二天早上)
+      isDaytime = tMin >= sunriseM || tMin <= sunsetM;
     } else {
       // 正常情况：sunrise < sunset (例如：伦敦 05:30 < 18:30)
-      // 夜间时间：00:00-05:30 和 18:30-23:59
-      isNight = tMin < sunriseM || tMin >= sunsetM;
+      // 白天时间：sunriseM <= tMin <= sunsetM
+      isDaytime = tMin >= sunriseM && tMin <= sunsetM;
     }
+
+    const isNight = !isDaytime; // 默认点灯，只在白天灭灯
 
     console.log(
       `🌅 ${d.city}: sunrise=${hhmm(sunriseM)} (${sunriseM}min), sunset=${hhmm(
         sunsetM
       )} (${sunsetM}min), current=${hhmm(tMin)} (${tMin}min), crossDate=${
         sunriseM > sunsetM
-      }, isNight=${isNight}`
+      }, isDaytime=${isDaytime}, isNight=${isNight}`
     );
 
     if (isNight) {
@@ -1473,6 +1535,9 @@ async function init() {
     testApiBtn = document.getElementById("testApiBtn");
 
     console.log("✅ All DOM elements found successfully");
+
+    // 测试时间转换
+    testTimeConversion();
 
     // D3要素初期化
     svg = d3.select("#map");
@@ -2022,4 +2087,60 @@ async function fetchFromJsonFallback(city, year) {
     );
     throw error;
   }
+}
+
+// 测试时间转换函数
+function testTimeConversion() {
+  console.log("🧪 Testing time conversion for Tokyo:");
+
+  // Tokyo UTC+9
+  // 测试日出时间 05:12
+  const sunrise = localTimeToUTCMinutes("2025-08-31T05:12", "Asia/Tokyo");
+  console.log(
+    `Tokyo sunrise: 05:12 JST -> ${Math.floor(sunrise / 60)}:${String(
+      sunrise % 60
+    ).padStart(2, "0")} UTC (${sunrise} minutes)`
+  );
+
+  // 测试日落时间 18:10
+  const sunset = localTimeToUTCMinutes("2025-08-31T18:10", "Asia/Tokyo");
+  console.log(
+    `Tokyo sunset: 18:10 JST -> ${Math.floor(sunset / 60)}:${String(
+      sunset % 60
+    ).padStart(2, "0")} UTC (${sunset} minutes)`
+  );
+
+  // 测试当前时间 23:00 UTC (1380分钟)
+  const currentTime = 1380; // 23:00 UTC
+  console.log(`Current time: 23:00 UTC (${currentTime} minutes)`);
+
+  // 白天判定逻辑（新逻辑：默认点灯，只在白天灭灯）
+  let isDaytime;
+  if (sunrise > sunset) {
+    // 跨日期情况：白天是从sunrise到午夜，然后从午夜到sunset
+    isDaytime = currentTime >= sunrise || currentTime <= sunset;
+    console.log(
+      `Cross-date case: ${currentTime} >= ${sunrise} || ${currentTime} <= ${sunset} = ${isDaytime}`
+    );
+  } else {
+    // 正常情况：白天是从sunrise到sunset
+    isDaytime = currentTime >= sunrise && currentTime <= sunset;
+    console.log(
+      `Normal case: ${currentTime} >= ${sunrise} && ${currentTime} <= ${sunset} = ${isDaytime}`
+    );
+  }
+
+  const isNight = !isDaytime;
+  console.log(`Is it daytime at 23:00 UTC? ${isDaytime}`);
+  console.log(
+    `Should Tokyo be lit at 23:00 UTC? ${isNight} (默认点灯，白天灭灯)`
+  );
+
+  // 计算预期结果
+  console.log("📊 Expected behavior:");
+  console.log("Tokyo日出: 05:12 JST = 20:12 UTC (1212分钟)");
+  console.log("Tokyo日落: 18:10 JST = 09:10 UTC (550分钟)");
+  console.log("跨日期情况：白天 = 20:12 UTC - 09:10 UTC (第二天)");
+  console.log("23:00 UTC (1380分钟) >= 1212分钟 = true，所以是白天");
+  console.log("因此Tokyo在23:00 UTC时应该灭灯（白天）");
 }
