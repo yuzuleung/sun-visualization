@@ -165,13 +165,11 @@ async function fetchCountriesAndCities() {
     const { data, timestamp } = JSON.parse(cached);
     // 24時間キャッシュ
     if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
-      console.log("Using cached countries data");
       return data;
     }
   }
 
   try {
-    console.log("Fetching countries data from REST Countries API...");
     const response = await fetch(
       "https://restcountries.com/v3.1/all?fields=name,cca2,population,flag"
     );
@@ -217,14 +215,8 @@ async function fetchCountriesAndCities() {
       })
     );
 
-    console.log(
-      `Loaded ${result.countries.length} countries with ${result.cities.length} cities`
-    );
     return result;
   } catch (error) {
-    console.error("Error fetching countries data:", error);
-    console.log("Using fallback city data");
-
     // フォールバック: 静的データを使用
     return {
       countries: [
@@ -239,11 +231,13 @@ async function fetchCountriesAndCities() {
         { cca2: "AQ", name: { common: "Antarctica" }, flag: "🇦🇶" },
         { cca2: "GL", name: { common: "Greenland" }, flag: "🇬🇱" },
       ],
-      cities: FALLBACK_CITIES.map((city) => ({
-        ...city,
-        countryName: "Unknown",
-        flag: "",
-      })),
+      cities: Object.values(MAJOR_CITIES)
+        .flat()
+        .map((city) => ({
+          ...city,
+          countryName: "Unknown",
+          flag: "",
+        })),
     };
   }
 }
@@ -272,9 +266,9 @@ function updateCountryOptions(countries) {
 
 /* ========= 2) グローバル変数 ========= */
 let playing = false;
-let yearPlaying = false; // 年度播放状态
+let yearPlaying = false; // 年度再生状態
 let frameReq = null;
-let yearFrameReq = null; // 年度播放动画请求ID
+let yearFrameReq = null; // 年度再生アニメーションリクエストID
 let currentData = new Map(); // key=city_year, val=dataset
 
 // DOM要素
@@ -294,7 +288,7 @@ let svg, gMap, gCities, projection, geoPath;
 /* ========= 2) API関数 ========= */
 
 /**
- * Open-Meteo Archive API - 获取真实的365天日出日落数据
+ * Open-Meteo Archive API - 365日間の実際の日の出日の入りデータを取得
  */
 const OPEN_METEO_ARCHIVE_URL = (lat, lon, startDate, endDate, timezone) => {
   const baseUrl = `https://archive-api.open-meteo.com/v1/archive`;
@@ -304,24 +298,10 @@ const OPEN_METEO_ARCHIVE_URL = (lat, lon, startDate, endDate, timezone) => {
     start_date: startDate, // YYYY-MM-DD format
     end_date: endDate, // YYYY-MM-DD format
     daily: "sunrise,sunset",
-    timezone: timezone, // 使用当地时区获取真实本地时间
+    timezone: timezone, // ローカルタイムゾーンを使用
   });
   return `${baseUrl}?${params.toString()}`;
 };
-
-/**
- * 代替API: Sunrise-Sunset API (1日ずつ取得) - コメントアウト
- */
-// const SUNRISE_SUNSET_URL = (lat, lon, date) => {
-//   const baseUrl = `https://api.sunrise-sunset.org/json`;
-//   const params = new URLSearchParams({
-//     lat: lat.toString(),
-//     lng: lon.toString(),
-//     date: date, // YYYY-MM-DD format
-//     formatted: 0, // UTC時刻で取得
-//   });
-//   return `${baseUrl}?${params.toString()}`;
-// };
 
 /**
  * 年と日から年月日文字列を生成
@@ -336,23 +316,19 @@ function ymdFromYearDay(year, day) {
 }
 
 /**
- * 本地时间字符串转换为UTC分钟数
- * @param {string} localTimeIso - 本地时间ISO字符串 (如: "2024-09-01T06:30:00")
- * @param {string} timezone - 时区标识符 (如: "Asia/Tokyo")
- * @returns {number} UTC分钟数 (0-1439)
+ * ローカル時刻文字列をUTC分数に変換
+ * @param {string} localTimeIso - ローカル時刻のISO文字列 (例: "2024-09-01T06:30:00")
+ * @param {string} timezone - タイムゾーン識別子 (例: "Asia/Tokyo")
+ * @returns {number} UTC分数 (0-1439)
  */
 function localTimeToUTCMinutes(localTimeIso, timezone) {
-  console.log(
-    `Converting local time: ${localTimeIso} in timezone: ${timezone}`
-  );
-
   try {
-    // 解析时间字符串，获取小时和分钟
+    // 時刻文字列を解析し、時と分を取得
     let timeString = localTimeIso;
 
-    // 处理不同的时间格式
+    // 異なる時刻フォーマットに対応
     if (timeString.includes("T")) {
-      timeString = timeString.split("T")[1]; // 取T后面的时间部分
+      timeString = timeString.split("T")[1]; // T以降の時刻部分を取得
     }
 
     const [hoursStr, minutesStr] = timeString.split(":");
@@ -360,14 +336,13 @@ function localTimeToUTCMinutes(localTimeIso, timezone) {
     const localMinutes = parseInt(minutesStr, 10);
 
     if (isNaN(localHours) || isNaN(localMinutes)) {
-      console.error(`Invalid time format: ${localTimeIso}`);
       return 0;
     }
 
-    // 使用简化的时区偏移量计算
+    // 簡易的なタイムゾーンオフセット計算を使用
     let utcOffsetHours = 0;
 
-    // 主要时区偏移量 (这是简化版本，实际应用中应该使用更精确的时区库)
+    // 主要タイムゾーンオフセット（簡易版、実用では正確なタイムゾーンライブラリを使用）
     const timezoneOffsets = {
       "Asia/Shanghai": 8,
       "Asia/Tokyo": 9,
@@ -398,58 +373,37 @@ function localTimeToUTCMinutes(localTimeIso, timezone) {
 
     utcOffsetHours = timezoneOffsets[timezone] || 0;
 
-    // 将本地时间转换为UTC时间
+    // ローカル時刻をUTC時刻に変換
     let totalLocalMinutes = localHours * 60 + localMinutes;
     let totalUTCMinutes = totalLocalMinutes - utcOffsetHours * 60;
 
-    // 确保时间在0-1439范围内（处理跨日期情况）
+    // 時刻を0-1439範囲内に確保（日付を跨ぐ場合を処理）
     while (totalUTCMinutes < 0) {
-      totalUTCMinutes += 1440; // 加一天
+      totalUTCMinutes += 1440; // 1日加算
     }
     while (totalUTCMinutes >= 1440) {
-      totalUTCMinutes -= 1440; // 减一天
+      totalUTCMinutes -= 1440; // 1日減算
     }
-
-    console.log(
-      `🕐 TIME CONVERSION DEBUG:
-      Input: ${localTimeIso} (timezone: ${timezone})
-      Parsed local time: ${localHours}:${String(localMinutes).padStart(2, "0")}
-      Timezone offset: UTC${utcOffsetHours >= 0 ? "+" : ""}${utcOffsetHours}
-      Local minutes: ${totalLocalMinutes}
-      UTC minutes: ${totalUTCMinutes}
-      Final UTC time: ${Math.floor(totalUTCMinutes / 60)}:${String(
-        totalUTCMinutes % 60
-      ).padStart(2, "0")}`
-    );
 
     return totalUTCMinutes; // 0..1439
   } catch (error) {
-    console.error(`Error converting time ${localTimeIso}:`, error);
     return 0;
   }
 }
 
 /**
- * ISO時刻文字列をUTC分に変換（旧版本，保留用于向后兼容）
+ * ISO時刻文字列をUTC分に変換（旧版、下位互換性のため保留）
  */
 function toUTCMinutes(hhmmIso, timezone = null) {
   if (timezone) {
     return localTimeToUTCMinutes(hhmmIso, timezone);
   }
 
-  console.log(`Converting time: ${hhmmIso}`);
   const t = new Date(hhmmIso);
   if (isNaN(t.getTime())) {
-    console.error(`Invalid date format: ${hhmmIso}`);
     return 0;
   }
-  const minutes = t.getUTCHours() * 60 + t.getUTCMinutes();
-  console.log(
-    `Converted to ${minutes} minutes (${Math.floor(minutes / 60)}:${String(
-      minutes % 60
-    ).padStart(2, "0")})`
-  );
-  return minutes; // 0..1439
+  return t.getUTCHours() * 60 + t.getUTCMinutes();
 }
 
 /**
@@ -462,57 +416,17 @@ function hhmm(mins) {
 }
 
 /**
- * 簡易的な日出日没時刻計算（フォールバック用）
- * 正確性は劣るが、APIが使えない場合の代替手段
- */
-function calculateSimpleSunTimes(lat, lon, year, dayOfYear) {
-  // 簡易的な太陽時計算（近似値）
-  const p = Math.asin(
-    0.39795 * Math.cos((0.98563 * (dayOfYear - 173) * Math.PI) / 180)
-  );
-  const arg = -Math.tan((lat * Math.PI) / 180) * Math.tan(p);
-
-  if (Math.abs(arg) >= 1) {
-    // 極夜または白夜
-    if (arg > 0) {
-      return { sunrise: null, sunset: null }; // 極夜
-    } else {
-      return { sunrise: "00:00", sunset: "23:59" }; // 白夜（近似）
-    }
-  }
-
-  const hourAngle = Math.acos(arg);
-  const sunriseHour = 12 - (hourAngle * 12) / Math.PI;
-  const sunsetHour = 12 + (hourAngle * 12) / Math.PI;
-
-  // 経度による時差補正（簡易版）
-  const timeZoneOffset = Math.round(lon / 15); // 大まかなタイムゾーン
-  const correctedSunrise = sunriseHour - timeZoneOffset;
-  const correctedSunset = sunsetHour - timeZoneOffset;
-
-  return {
-    sunrise: hhmm(Math.max(0, Math.min(1439, correctedSunrise * 60))),
-    sunset: hhmm(Math.max(0, Math.min(1439, correctedSunset * 60))),
-  };
-}
-
-/**
- * 从Open-Meteo Archive API获取真实的365天日出日落数据
+ * Open-Meteo Archive APIから365日間の実際の日の出日の入りデータを取得
  */
 async function fetchRealSunTimes(city, year) {
-  console.log(`� Fetching real sun times for ${city.city} from Archive API...`);
-
-  // 计算日期范围（从当年9月1日到次年8月31日，覆盖365天）
+  // 日付範囲を計算（今年9月1日から来年8月31日まで、365日をカバー）
   const startDate = `2024-01-01`;
   const endDate = `2025-08-31`;
-
-  console.log(`Date range: ${startDate} to ${endDate}`);
 
   const cacheKey = `archive_${city.city}_${year}`;
   const cached = localStorage.getItem(cacheKey);
 
   if (cached) {
-    console.log(`📦 Using cached Archive API data for ${city.city}`);
     return JSON.parse(cached);
   }
 
@@ -523,34 +437,18 @@ async function fetchRealSunTimes(city, year) {
     endDate,
     city.tz
   );
-  console.log(`🌐 Archive API URL for ${city.city} (${city.tz}):`, url);
 
   try {
     const response = await fetch(url);
 
-    console.log(
-      `📡 Archive API response status for ${city.city}: ${response.status} ${response.statusText}`
-    );
-
     if (!response.ok) {
-      const errorText = await response.text();
-
-      // 特殊处理速率限制错误
+      // レート制限エラーの特別処理
       if (response.status === 429) {
-        console.warn(
-          `⏳ Rate limited for ${city.city}, will use fallback data`
-        );
         throw new Error(
           `Rate limit exceeded for ${city.city} - using fallback`
         );
       }
 
-      console.error(`❌ Archive API error for ${city.city}:`, {
-        status: response.status,
-        statusText: response.statusText,
-        url: url,
-        response: errorText,
-      });
       throw new Error(
         `Archive API error ${response.status}: ${response.statusText} @ ${city.city}`
       );
@@ -558,36 +456,19 @@ async function fetchRealSunTimes(city, year) {
 
     const json = await response.json();
 
-    // 验证API响应结构
+    // APIレスポンス構造を検証
     if (
       !json.daily ||
       !json.daily.time ||
       !json.daily.sunrise ||
       !json.daily.sunset
     ) {
-      console.error(
-        `❌ Invalid Archive API response structure for ${city.city}:`,
-        json
-      );
       throw new Error(
         `Invalid Archive API response structure for ${city.city}`
       );
     }
 
-    console.log(`✅ Archive API response for ${city.city}:`, {
-      timezone: json.timezone,
-      totalDays: json.daily.time.length,
-      dateRange: `${json.daily.time[0]} to ${
-        json.daily.time[json.daily.time.length - 1]
-      }`,
-      firstFewDays: json.daily.time.slice(0, 3).map((date, i) => ({
-        date,
-        sunrise: json.daily.sunrise[i],
-        sunset: json.daily.sunset[i],
-      })),
-    });
-
-    // 转换数据格式
+    // データフォーマットを変換
     const result = {
       country: city.country,
       city: city.city,
@@ -603,42 +484,31 @@ async function fetchRealSunTimes(city, year) {
       source: "open-meteo-archive",
     };
 
-    // 缓存结果（24小时有效）
+    // 結果をキャッシュ（24時間有効）
     localStorage.setItem(cacheKey, JSON.stringify(result));
-    console.log(
-      `💾 Cached Archive API data for ${city.city}: ${result.daily.length} days`
-    );
 
     return result;
   } catch (error) {
-    console.error(`❌ Archive API failed for ${city.city}:`, error);
     throw error;
   }
 }
 
 /**
- * 从JSON fallback文件获取日出日落数据
- */
-/**
- * 主数据获取函数 - 优先使用Archive API，失败时使用JSON数据
+ * メインデータ取得関数 - Archive APIを優先使用し、失敗時はJSONデータを使用
  */
 async function fetchYearSunTimes(city, year) {
   try {
-    // 首先尝试使用Archive API获取真实数据 - COMMENTED OUT FOR TESTING
-    // return await fetchRealSunTimes(city, year);
-
-    // 直接从JSON文件获取数据（测试用）
-    console.log(`🔄 Loading data from JSON fallback for ${city.city}...`);
-    return await fetchFromJsonFallback(city, year);
-  } catch (error) {
-    console.error(
-      `❌ Failed to get real sun times for ${city.city}:`,
-      error.message
-    );
-
-    // 如果Archive API失败，直接从JSON文件获取数据
-    console.log(`🔄 Loading data from JSON fallback for ${city.city}...`);
-    return await fetchFromJsonFallback(city, year);
+    // まずArchive APIを試行
+    return await fetchRealSunTimes(city, year);
+  } catch (apiError) {
+    try {
+      // APIが失敗した場合、JSONファイルからフォールバック
+      return await fetchFromJsonFallback(city, year);
+    } catch (jsonError) {
+      throw new Error(
+        `All data sources failed for ${city.city}: API (${apiError.message}), JSON (${jsonError.message})`
+      );
+    }
   }
 }
 
@@ -669,7 +539,7 @@ async function initMap() {
       .attr("stroke-width", 0.5)
       .attr("opacity", 0.95);
   } catch (error) {
-    console.error("Error loading world map:", error);
+    // 地図読み込み失敗時も続行
   }
 }
 
@@ -698,15 +568,14 @@ function drawCityMarkers(cities) {
     cityGroups.push({ element: this, x, y, city: d.city });
   });
 
-  // 标签智能定位避免重叠
+  // ラベルの知能的な配置で重複を回避
   adjustLabelPositions(cityGroups);
 }
 
 /**
- * 调整城市标签位置以避免重叠
+ * 都市ラベル位置を調整して重複を回避
  */
 function adjustLabelPositions(cityGroups) {
-  const minDistance = 25; // 最小距离
   const positions = [
     { dx: 0, dy: -6 }, // 上
     { dx: 8, dy: -2 }, // 右上
@@ -721,12 +590,12 @@ function adjustLabelPositions(cityGroups) {
     let bestPosition = positions[0];
     let bestScore = -Infinity;
 
-    // 为每个标签尝试不同位置
+    // 各ラベルに対して異なる位置を試行
     positions.forEach((pos) => {
       const labelX = group.x + pos.dx;
       const labelY = group.y + pos.dy;
 
-      // 计算与其他标签的距离
+      // 他のラベルとの距離を計算
       let minDistToOthers = Infinity;
       cityGroups.forEach((otherGroup, j) => {
         if (i === j) return;
@@ -738,7 +607,7 @@ function adjustLabelPositions(cityGroups) {
         minDistToOthers = Math.min(minDistToOthers, dist);
       });
 
-      // 评分：距离其他标签越远越好，优先选择上方位置
+      // スコア評価：他のラベルから遠いほど良い、上方位置を優先
       const score = minDistToOthers + (pos.dy < 0 ? 5 : 0);
 
       if (score > bestScore) {
@@ -747,7 +616,7 @@ function adjustLabelPositions(cityGroups) {
       }
     });
 
-    // 应用最佳位置
+    // 最適位置を適用
     label
       .attr("dx", bestPosition.dx)
       .attr("dy", bestPosition.dy)
@@ -756,21 +625,21 @@ function adjustLabelPositions(cityGroups) {
         bestPosition.dx > 0 ? "start" : bestPosition.dx < 0 ? "end" : "middle"
       );
 
-    // 保存位置信息供下次计算使用
+    // 次回計算用に位置情報を保存
     group.labelPos = bestPosition;
   });
 }
 
 /* ========= 5) データ読み込み ========= */
 
-// API请求限制管理
+// APIリクエスト制限管理
 let apiRequestQueue = [];
 let isProcessingQueue = false;
-const MAX_CONCURRENT_REQUESTS = 2; // 最大并发请求数
-const REQUEST_DELAY = 500; // 请求间延迟（毫秒）
+const MAX_CONCURRENT_REQUESTS = 2; // 最大並行リクエスト数
+const REQUEST_DELAY = 500; // リクエスト間遅延（ミリ秒）
 
 /**
- * 添加API请求到队列中，控制并发数
+ * APIリクエストをキューに追加し、並行数を制御
  */
 async function queueApiRequest(requestFunc) {
   return new Promise((resolve, reject) => {
@@ -780,7 +649,7 @@ async function queueApiRequest(requestFunc) {
 }
 
 /**
- * 处理API请求队列
+ * APIリクエストキューを処理
  */
 async function processQueue() {
   if (isProcessingQueue || apiRequestQueue.length === 0) return;
@@ -789,7 +658,7 @@ async function processQueue() {
   const activeRequests = [];
 
   while (apiRequestQueue.length > 0 || activeRequests.length > 0) {
-    // 启动新的请求（不超过最大并发数）
+    // 新しいリクエストを開始（最大並行数を超えない）
     while (
       activeRequests.length < MAX_CONCURRENT_REQUESTS &&
       apiRequestQueue.length > 0
@@ -806,13 +675,13 @@ async function processQueue() {
 
       activeRequests.push(request);
 
-      // 添加延迟避免API速率限制
+      // APIレート制限回避のため遅延を追加
       if (apiRequestQueue.length > 0) {
         await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY));
       }
     }
 
-    // 等待至少一个请求完成
+    // 最低1つのリクエスト完了を待機
     if (activeRequests.length > 0) {
       await Promise.race(activeRequests);
     }
@@ -827,91 +696,37 @@ async function ensureDataLoaded() {
   const cities =
     cc === "ALL" ? CITY_BANK : CITY_BANK.filter((c) => c.country === cc);
 
-  console.log(
-    `🔄 Loading data for ${cities.length} cities (${cc}) for year ${year}`
-  );
-
-  // 显示加载进度
+  // 読み込み進捗を表示
   updateLoadingProgress(0, cities.length);
 
   const tasks = cities.map(async (c, index) => {
     const key = `${c.city}_${year}`;
 
-    // 使用请求队列控制并发
-    console.log(`🌅 Queuing request for ${c.city}...`);
+    // リクエストキューを使用して並行処理を制御
     try {
       const dataset = await queueApiRequest(() => fetchYearSunTimes(c, year));
       currentData.set(key, dataset);
 
-      // 更新进度
+      // 進捗を更新
       updateLoadingProgress(index + 1, cities.length);
-
-      // データ検証
-      if (dataset.daily && dataset.daily.length > 0) {
-        const firstDay = dataset.daily[0];
-        console.log(`🌅 ${c.city} verified data:`, {
-          city: c.city,
-          totalDays: dataset.daily.length,
-          source: dataset.source,
-          firstDay: {
-            date: firstDay.date,
-            sunrise: firstDay.sunrise,
-            sunset: firstDay.sunset,
-            sunriseMinutes: toUTCMinutes(firstDay.sunrise, c.tz),
-            sunsetMinutes: toUTCMinutes(firstDay.sunset, c.tz),
-          },
-        });
-      } else {
-        console.error(`❌ Invalid dataset for ${c.city}:`, dataset);
-      }
 
       return { city: c.city, status: "success", data: dataset };
     } catch (error) {
-      console.error(`❌ Failed to load data for ${c.city}:`, error.message);
       return { city: c.city, status: "error", error: error.message };
     }
   });
 
   const results = await Promise.all(tasks);
 
-  // 結果を집计
+  // 結果を集計
   const successful = results.filter((r) => r.status === "success");
-  const failed = results.filter((r) => r.status === "error");
 
-  console.log(
-    `📊 Data loading complete: ${successful.length}/${cities.length} cities loaded successfully`
-  );
-
-  // 更新数据源状态显示
+  // データソース状態表示を更新
   updateDataSourceStatus(successful);
-
-  if (successful.length > 0) {
-    console.log(
-      "✅ Successfully loaded cities:",
-      successful.map((r) => r.city)
-    );
-  }
-
-  if (failed.length > 0) {
-    console.warn(
-      `⚠️ Failed to load data for ${failed.length} cities:`,
-      failed.map((f) => f.city)
-    );
-  }
-
-  // currentData 상태 확인
-  console.log(`🗂️ Current data cache has ${currentData.size} entries:`);
-  for (let [key, value] of currentData) {
-    console.log(
-      `  ${key}: ${value?.daily?.length || 0} days (${
-        value?.source || "unknown"
-      })`
-    );
-  }
 }
 
 /**
- * 更新数据源状态显示
+ * データソース状態表示を更新
  */
 function updateDataSourceStatus(successfulResults) {
   const dataSourceEl = document.getElementById("dataSource");
@@ -919,16 +734,14 @@ function updateDataSourceStatus(successfulResults) {
 
   if (!dataSourceEl || !dataStatusEl) return;
 
-  // 统计数据源类型
+  // データソースタイプを統計
   const sourceCounts = {};
   successfulResults.forEach((result) => {
     const source = result.data?.source || "unknown";
     sourceCounts[source] = (sourceCounts[source] || 0) + 1;
   });
 
-  console.log("📊 Data sources:", sourceCounts);
-
-  // 确定主要数据源
+  // 主要データソースを決定
   const totalCities = successfulResults.length;
   const archiveCount = sourceCounts["open-meteo-archive"] || 0;
   const jsonFallbackCount = sourceCounts["json-fallback"] || 0;
@@ -949,7 +762,7 @@ function updateDataSourceStatus(successfulResults) {
 }
 
 /**
- * 更新加载进度显示
+ * 読み込み進捗表示を更新
  */
 function updateLoadingProgress(completed, total) {
   const dataStatusEl = document.getElementById("dataStatus");
@@ -974,35 +787,19 @@ function render() {
   const cities =
     cc === "ALL" ? CITY_BANK : CITY_BANK.filter((c) => c.country === cc);
 
-  console.log(
-    `🎯 RENDER START: ${cities.length} cities for ${cc} on day ${day} at ${hhmm(
-      tMin
-    )} UTC`
-  );
-
-  let litCities = 0;
-  let totalCities = 0;
-
-  console.log(
-    `📍 Total city markers on map: ${gCities.selectAll("g.cityG").size()}`
-  );
+  // レンダリング処理
 
   gCities.selectAll("g.cityG").each(function (d) {
-    console.log(`🏙️ Processing city: ${d?.city || "unknown"}`);
-
     const node = d3.select(this);
     const dot = node.select("circle.city");
     const lab = node.select("text.cityLabel");
 
     if (!dot.size()) {
-      console.warn(
-        `❌ No circle element found for city ${d?.city || "unknown"}`
-      );
       return;
     }
 
     if (!cities.includes(d)) {
-      // 非選択国家 → 白天时的小灰点样式
+      // 非選択国 → 昼間時の小さなグレー点スタイル
       dot
         .classed("dim", true)
         .attr("r", 2.5)
@@ -1014,87 +811,54 @@ function render() {
       return;
     }
 
-    totalCities++;
-    console.log(`✅ Processing selected city: ${d.city}`);
-
     const key = `${d.city}_${year}`;
     const dataset = currentData.get(key);
 
     if (!dataset) {
-      console.warn(`❌ No dataset for ${d.city} ${year}`);
-
       // 簡易フォールバック
       dot.classed("dim", true).attr("r", 3.8).attr("stroke", null);
       lab.attr("opacity", 0.2);
       return;
     }
 
-    console.log(
-      `✅ Found dataset for ${d.city}: ${dataset.daily?.length || 0} days`
-    );
-
     // 日付インデックス（0-based）
     const idx = Math.max(0, Math.min(day - 1, dataset.daily.length - 1));
     const today = dataset.daily[idx];
 
-    console.log(`📅 Day ${day} (index ${idx}): ${today?.date || "no date"}`);
-
     // 当日のsunrise/sunsetを取得
     if (!today || !today.sunrise || !today.sunset) {
-      console.warn(
-        `❌ Invalid sun data for ${d.city} on ${
-          today?.date || "unknown date"
-        }:`,
-        today
-      );
       dot.classed("dim", true).attr("r", 3.8);
       lab.attr("opacity", 0.2);
       return;
     }
-
-    console.log(
-      `🌅 Raw sun times for ${d.city}: sunrise=${today.sunrise}, sunset=${today.sunset} (timezone: ${d.tz})`
-    );
 
     const sunriseM = toUTCMinutes(today.sunrise, d.tz); // 0..1439 当日の日出時刻 (UTC)
     const sunsetM = toUTCMinutes(today.sunset, d.tz); // 0..1439 当日の日没時刻 (UTC)
 
     if (isNaN(sunriseM) || isNaN(sunsetM)) {
-      console.error(
-        `❌ Invalid time conversion for ${d.city}: sunrise=${sunriseM}, sunset=${sunsetM}`
-      );
       dot.classed("dim", true).attr("r", 3.8);
       lab.attr("opacity", 0.2);
       return;
     }
 
-    // 白天判定：简化逻辑 - 只在日出到日落之间为白天，其他时间都点灯
-    // 但要正确处理跨日期的情况
+    // 昼間判定：簡易ロジック - 日の出から日の入りの間のみ昼間、その他の時間は点灯
+    // ただし日付をまたぐ場合は正しく処理
     let isDaytime;
     if (sunriseM > sunsetM) {
-      // 跨日期情况：sunrise > sunset (例如：东京 20:12 UTC > 09:10 UTC)
-      // 这意味着日出在前一天，日落在当天
-      // 实际的白天是：从日出到午夜，然后从午夜到日落
-      // 即：tMin >= sunriseM (当天晚上) 或 tMin <= sunsetM (第二天早上)
+      // 日付跨ぎ状況：sunrise > sunset (例：東京 20:12 UTC > 09:10 UTC)
+      // これは日の出が前日、日の入りが当日であることを意味する
+      // 実際の昼間は：日の出から午夜まで、そして午夜から日の入りまで
+      // つまり：tMin >= sunriseM (当日夜) または tMin <= sunsetM (翌日朝)
       isDaytime = tMin >= sunriseM || tMin <= sunsetM;
     } else {
-      // 正常情况：sunrise < sunset (例如：伦敦 05:30 < 18:30)
-      // 白天时间：sunriseM <= tMin <= sunsetM
+      // 正常ケース：sunrise < sunset (例：ロンドン 05:30 < 18:30)
+      // 昼間時刻：sunriseM <= tMin <= sunsetM
       isDaytime = tMin >= sunriseM && tMin <= sunsetM;
     }
 
-    const isNight = !isDaytime; // 默认点灯，只在白天灭灯
-
-    console.log(
-      `🌅 ${d.city}: sunrise=${hhmm(sunriseM)} (${sunriseM}min), sunset=${hhmm(
-        sunsetM
-      )} (${sunsetM}min), current=${hhmm(tMin)} (${tMin}min), crossDate=${
-        sunriseM > sunsetM
-      }, isDaytime=${isDaytime}, isNight=${isNight}`
-    );
+    const isNight = !isDaytime; // デフォルト点灯、昼間のみ消灯
 
     if (isNight) {
-      console.log(`🔥 LIGHTING UP ${d.city}!`);
       dot
         .classed("dim", false)
         .attr("r", 3.5)
@@ -1103,9 +867,7 @@ function render() {
         .attr("fill", "#ffd700")
         .style("fill", "#ffd700");
       lab.attr("opacity", 1).attr("fill", "#ffd700").style("fill", "#ffd700");
-      litCities++;
     } else {
-      console.log(`☀️ ${d.city} is in daylight`);
       dot
         .classed("dim", true)
         .attr("r", 2.5)
@@ -1115,17 +877,6 @@ function render() {
         .style("fill", "#555");
       lab.attr("opacity", 0.25).attr("fill", "#888").style("fill", "#888");
     }
-  });
-
-  console.log(
-    `🌃 RENDER COMPLETE: ${litCities}/${totalCities} cities are lit (night time)`
-  );
-
-  // 强制更新所有城市标记的视觉状态
-  gCities.selectAll("circle.city").each(function () {
-    const element = d3.select(this);
-    const currentFill = element.attr("fill");
-    console.log(`Final visual check - Circle fill: ${currentFill}`);
   });
 
   // アニメーション継続
@@ -1138,37 +889,37 @@ function render() {
 }
 
 /**
- * 年度动画渲染函数
+ * 年間アニメーションレンダリング関数
  */
 function renderYearAnimation() {
   const currentDay = +daySlider.value;
   const currentTime = +timeSlider.value;
 
-  // 正常渲染当前状态
+  // 現在状態を正常にレンダリング
   render();
 
   if (yearPlaying) {
-    // 每帧推进一天，时间保持固定
+    // フレーム毎に1日進行、時刻は固定
     let nextDay = currentDay + 1;
     const currentYear = +yearSel.value;
-    const maxDay = currentYear === 2025 ? 244 : 365; // 2025年限制到9月1日
+    const maxDay = currentYear === 2025 ? 244 : 365; // 2025年は9月1日まで制限
 
     if (nextDay > maxDay) {
-      nextDay = 1; // 循环播放
+      nextDay = 1; // ループ再生
     }
 
     daySlider.value = nextDay;
 
-    // 继续动画，每秒约4天的速度
+    // アニメーション継続、毎秒約4日の速度
     yearFrameReq = setTimeout(() => {
       requestAnimationFrame(renderYearAnimation);
-    }, 250); // 250ms = 每秒4帧 = 每秒4天
+    }, 250); // 250ms = 毎秒4フレーム = 毎秒4日
   }
 }
 
 /* ========= 7) イベントハンドラ ========= */
 function bindEventHandlers() {
-  // 检查所有必需的DOM元素是否存在
+  // 必要なすべてのDOM要素が存在するかチェック
   const elements = [
     { name: "countrySel", element: countrySel },
     { name: "yearSel", element: yearSel },
@@ -1183,12 +934,9 @@ function bindEventHandlers() {
 
   for (const { name, element } of elements) {
     if (!element) {
-      console.error(`❌ DOM element not found: ${name}`);
       throw new Error(`Required DOM element not found: ${name}`);
     }
   }
-
-  console.log("✅ All required DOM elements found, binding events...");
 
   countrySel.addEventListener("change", async () => {
     await ensureDataLoaded();
@@ -1199,15 +947,15 @@ function bindEventHandlers() {
     const selectedYear = +yearSel.value;
     const currentDay = +daySlider.value;
 
-    // 根据年份设置日期范围
+    // 年に基づいて日付範囲を設定
     if (selectedYear === 2025) {
-      // 2025年：只能到9月1日（第244天）
+      // 2025年：9月1日（第244日）まで
       daySlider.max = 244;
       if (currentDay > 244) {
         daySlider.value = 244;
       }
     } else {
-      // 其他年份：完整365天
+      // その他の年：完全365日
       daySlider.max = 365;
     }
 
@@ -1222,7 +970,7 @@ function bindEventHandlers() {
     playing = !playing;
     playBtn.textContent = playing ? "⏸ 停止" : "▶ 再生";
 
-    // 停止年度播放如果正在进行
+    // 年間再生を停止（実行中の場合）
     if (playing && yearPlaying) {
       yearPlaying = false;
       clearTimeout(yearFrameReq);
@@ -1240,7 +988,7 @@ function bindEventHandlers() {
     yearPlaying = !yearPlaying;
     yearPlayBtn.textContent = yearPlaying ? "⏸ 年間停止" : "📅 年間再生";
 
-    // 停止日时播放如果正在进行
+    // 日時再生を停止（実行中の場合）
     if (yearPlaying && playing) {
       playing = false;
       cancelAnimationFrame(frameReq);
@@ -1261,12 +1009,7 @@ function bindEventHandlers() {
       const removedKeys = [];
 
       keys.forEach((key) => {
-        if (
-          key.startsWith("om_") ||
-          key.startsWith("ow_") ||
-          key.startsWith("hardcoded_") ||
-          key === "countries_cities_cache"
-        ) {
+        if (key.startsWith("archive_") || key === "countries_cities_cache") {
           localStorage.removeItem(key);
           removedKeys.push(key);
         }
@@ -1275,7 +1018,6 @@ function bindEventHandlers() {
       // データマップもクリア
       currentData.clear();
 
-      console.log(`Cache cleared: ${removedKeys.length} items removed`);
       alert(`キャッシュをクリアしました (${removedKeys.length}件)`);
 
       // データを再読み込み
@@ -1288,30 +1030,19 @@ function bindEventHandlers() {
   });
 
   testApiBtn.addEventListener("click", async () => {
-    console.log("🎯 Night Lighting Test starting...");
-
-    // テスト: 현재 설정으로 야간 판정 로직 확인
+    // テスト: 現在設定での夜間判定
     const currentYear = +yearSel.value;
     const currentDay = +daySlider.value;
     const currentTime = +timeSlider.value;
 
-    console.log(
-      `Current settings: Year=${currentYear}, Day=${currentDay}, Time=${hhmm(
-        currentTime
-      )} UTC`
-    );
-
-    // 각 도시에 대해 야간 판정 테스트
-    const cities = CITY_BANK.slice(0, 5); // 처음 5개 도시만
-
-    console.log("🌃 Testing night judgment for each city:");
+    // 各都市の夜間判定テスト（簡略版）
+    const cities = CITY_BANK.slice(0, 5);
 
     for (const city of cities) {
       const key = `${city.city}_${currentYear}`;
       const dataset = currentData.get(key);
 
       if (!dataset || !dataset.daily) {
-        console.log(`❌ ${city.city}: No data available`);
         continue;
       }
 
@@ -1322,189 +1053,26 @@ function bindEventHandlers() {
       const dayData = dataset.daily[dayIndex];
 
       if (!dayData) {
-        console.log(`❌ ${city.city}: No data for day ${currentDay}`);
         continue;
       }
 
       const sunriseM = toUTCMinutes(dayData.sunrise, city.tz);
       const sunsetM = toUTCMinutes(dayData.sunset, city.tz);
 
-      // 使用与主渲染函数相同的夜间判断逻辑
+      // 夜間判定ロジック
       const isNight =
         sunriseM > sunsetM
-          ? currentTime <= sunsetM || currentTime >= sunriseM // 跨日期情况
-          : currentTime < sunriseM || currentTime >= sunsetM; // 正常情况
-
-      console.log(
-        `${isNight ? "🌙" : "☀️"} ${city.city}: sunrise=${hhmm(
-          sunriseM
-        )}, sunset=${hhmm(sunsetM)}, current=${hhmm(currentTime)}, crossDate=${
-          sunriseM > sunsetM
-        }, isNight=${isNight}`
-      );
+          ? currentTime <= sunsetM || currentTime >= sunriseM
+          : currentTime < sunriseM || currentTime >= sunsetM;
     }
 
-    // 실제 지도상에서 점등된 도시 개수 확인
-    let mapLitCount = 0;
-    let mapTotalCount = 0;
-
-    gCities.selectAll("g.cityG").each(function (d) {
-      if (CITY_BANK.includes(d)) {
-        mapTotalCount++;
-        const dot = d3.select(this).select("circle.city");
-        if (!dot.classed("dim")) {
-          mapLitCount++;
-        }
-      }
-    });
-
-    console.log(
-      `🗺️ Map status: ${mapLitCount}/${mapTotalCount} cities are visually lit`
-    );
-
-    // 강제 리렌더링 테스트
-    console.log("🔄 Force re-rendering...");
+    // 強制再レンダリング
     render();
 
-    alert(
-      `🎯 夜間点灯テスト完了\n\n現在時刻: ${hhmm(
-        currentTime
-      )} UTC\n地図上点灯都市: ${mapLitCount}/${mapTotalCount}\n\n詳細はコンソールをご確認ください。`
-    );
+    alert(`🎯 夜間点灯テスト完了\n\n現在時刻: ${hhmm(currentTime)} UTC`);
   });
 
-  /* testAltApiBtn は HTML にないのでコメントアウト
-  testAltApiBtn.addEventListener("click", async () => {
-    console.log("� Display Test starting...");
-
-    try {
-      // 現在の設定を取得
-      const currentCountry = countrySel.value;
-      const currentYear = +yearSel.value;
-      const currentDay = +daySlider.value;
-      const currentTime = +timeSlider.value;
-
-      console.log(
-        `Current settings: Country=${currentCountry}, Year=${currentYear}, Day=${currentDay}, Time=${hhmm(
- currentTime)}`
-      );
-
-      // 選択された都市のデータを確認
-      const cities =
-        currentCountry === "ALL"
-          ? CITY_BANK
-          : CITY_BANK.filter((c) => c.country === currentCountry);
-
-      console.log(
-        `Selected cities (${cities.length}):`,
-        cities.map((c) => c.city)
-      );
-
-      let dataStatus = [];
-
-      for (const city of cities.slice(0, 5)) {
-        // 最初の5都市をテスト
-        const key = `${city.city}_${currentYear}`;
-        const dataset = currentData.get(key);
-
-        if (dataset && dataset.daily && dataset.daily.length > 0) {
-          const dayIndex = Math.max(
-            0,
-            Math.min(currentDay - 1, dataset.daily.length - 1)
-          );
-          const dayData = dataset.daily[dayIndex];
-
-          if (dayData && dayData.sunrise && dayData.sunset) {
-            const sunriseM = toUTCMinutes(dayData.sunrise, city.tz);
-            const sunsetM = toUTCMinutes(dayData.sunset, city.tz);
-            const isNight =
-              sunriseM < sunsetM
-                ? currentTime < sunriseM || currentTime >= sunsetM
-                : currentTime >= sunsetM && currentTime < sunriseM;
-
-            dataStatus.push({
-              city: city.city,
-              status: "✅ Data OK",
-              source: dataset.source || "unknown",
-              dayData: {
-                date: dayData.date,
-                sunrise: hhmm(sunriseM),
-                sunset: hhmm(sunsetM),
-                isNight: isNight,
-              },
-            });
-          } else {
-            dataStatus.push({
-              city: city.city,
-              status: "⚠️ Invalid day data",
-              dayData: dayData,
-            });
-          }
-        } else {
-          dataStatus.push({
-            city: city.city,
-            status: "❌ No data",
-            dataset: !!dataset,
-          });
-        }
-      }
-
-      // 結果を表示
-      console.log("\n📊 Display Test Results:");
-      dataStatus.forEach((status) => {
-        console.log(`${status.status} ${status.city}:`);
-        if (status.dayData && typeof status.dayData === "object") {
-          console.log(`  Date: ${status.dayData.date}`);
-          console.log(`  Sunrise: ${status.dayData.sunrise}`);
-          console.log(`  Sunset: ${status.dayData.sunset}`);
-          console.log(`  Is Night: ${status.dayData.isNight}`);
-          console.log(`  Source: ${status.source || "unknown"}`);
-        } else if (status.dayData) {
-          console.log(`  Day data:`, status.dayData);
-        }
-      });
-
-      // 地図上の都市状態を確認
-      let mapCityCount = 0;
-      let litCityCount = 0;
-
-      gCities.selectAll("g.cityG").each(function (d) {
-        if (cities.includes(d)) {
-          mapCityCount++;
-          const dot = d3.select(this).select("circle.city");
-          const isLit = !dot.classed("dim");
-          if (isLit) litCityCount++;
-        }
-      });
-
-      console.log(
-        `\n🗺️ Map Status: ${litCityCount}/${mapCityCount} cities are lit (night time)`
-      );
-
-      const successCount = dataStatus.filter((s) =>
-        s.status.startsWith("✅")
-      ).length;
-      const message =
-        `表示テスト結果:\n\n` +
-        `✅ データ正常: ${successCount}/${dataStatus.length} 都市\n` +
-        `🗺️ 地図表示: ${mapCityCount} 都市中 ${litCityCount} 都市が点灯\n` +
-        `⏰ 現在時刻: ${hhmm(currentTime)} UTC\n` +
-        `📅 現在日付: Day ${currentDay} (${ymdFromYearDay(
-          currentYear,
-          currentDay
-        )})\n\n` +
-        `詳細はコンソールを確認してください。`;
-
-      alert(message);
-    } catch (error) {
-      console.error("❌ Display test failed:", error);
-      alert(`❌ 表示テストでエラーが発生しました:\n${error.message}`);
-    }
-  }); */
-
-  console.log("✅ All event handlers bound successfully");
-
-  // 初始化daySlider的最大值
+  // daySliderの最大値を初期化
   const initialYear = +yearSel.value;
   if (initialYear === 2025) {
     daySlider.max = 244;
@@ -1519,8 +1087,7 @@ function bindEventHandlers() {
 /* ========= 8) 初期化 ========= */
 async function init() {
   try {
-    // DOM要素取得
-    console.log("🔍 Getting DOM elements...");
+    // DOM要素を取得
 
     countrySel = document.getElementById("countrySel");
     yearSel = document.getElementById("yearSel");
@@ -1534,11 +1101,6 @@ async function init() {
     exportDataBtn = document.getElementById("exportDataBtn");
     testApiBtn = document.getElementById("testApiBtn");
 
-    console.log("✅ All DOM elements found successfully");
-
-    // 测试时间转换
-    testTimeConversion();
-
     // D3要素初期化
     svg = d3.select("#map");
     gMap = svg.append("g").attr("id", "countries");
@@ -1547,26 +1109,22 @@ async function init() {
     geoPath = d3.geoPath(projection);
 
     // 地図描画
-    console.log("Initializing world map...");
     await initMap();
 
-    // 优先尝试从JSON文件加载城市列表
-    console.log("Loading countries and cities data...");
+    // 優先的にJSONファイルから都市リストを読み込み
     let countries, cities;
 
     try {
-      console.log("🔄 Trying to load city list from JSON fallback...");
       const response = await fetch("./sun-data-fallback.json");
       if (response.ok) {
         const fallbackData = await response.json();
-        // 缓存JSON数据
+        // JSONデータをキャッシュ
         window.fallbackJsonData = fallbackData;
 
-        // 使用JSON文件中的完整城市列表
+        // JSONファイル中の完全都市リストを使用
         cities = fallbackData.metadata.cities;
-        console.log(`✅ Loaded ${cities.length} cities from JSON fallback`);
 
-        // 构建国家列表
+        // 国家リストを構築
         const countryMap = new Map();
         cities.forEach((city) => {
           if (!countryMap.has(city.country)) {
@@ -1617,10 +1175,7 @@ async function init() {
         throw new Error(`Failed to fetch JSON: ${response.status}`);
       }
     } catch (error) {
-      console.warn(
-        "⚠️ Failed to load from JSON, falling back to MAJOR_CITIES:",
-        error.message
-      );
+      // JSON読み込み失敗時は通常のAPI経由で取得
       const result = await fetchCountriesAndCities();
       countries = result.countries;
       cities = result.cities;
@@ -1628,8 +1183,6 @@ async function init() {
 
     // グローバル変数に設定
     CITY_BANK = cities;
-    console.log("Cities loaded:", cities.length);
-
     // 国選択肢を更新
     updateCountryOptions(countries);
 
@@ -1639,38 +1192,12 @@ async function init() {
     // イベントバインド
     bindEventHandlers();
 
-    // 强制清除所有缓存以使用新的API
-    console.log("🧹 Clearing all cache to ensure fresh Archive API data...");
-    const keys = Object.keys(localStorage);
-    keys.forEach((key) => {
-      if (
-        key.startsWith("om_") ||
-        key.startsWith("ow_") ||
-        key.startsWith("archive_") ||
-        key.startsWith("hardcoded_") ||
-        key === "countries_cities_cache"
-      ) {
-        localStorage.removeItem(key);
-      }
-    });
-    currentData.clear(); // 清除内存缓存
-
     // 初期データ読み込みと描画
-    console.log("Loading initial sun data...");
     await ensureDataLoaded();
 
-    console.log("Performing initial render...");
     render();
-
-    console.log(
-      `✅ Night Lights Map initialized successfully with ${cities.length} cities from ${countries.length} countries`
-    );
   } catch (error) {
-    console.error("❌ Initialization failed:", error);
-
-    // 直接使用JSON fallback，不再尝试复杂的错误处理
-    console.log("🔄 Directly loading from JSON fallback...");
-
+    // JSONフォールバックを直接使用
     try {
       const response = await fetch("./sun-data-fallback.json");
       if (response.ok) {
@@ -1725,8 +1252,6 @@ async function init() {
               : "🌍",
         }));
 
-        console.log(`✅ Loaded ${CITY_BANK.length} cities from JSON fallback`);
-
         updateCountryOptions(countries);
         drawCityMarkers(CITY_BANK);
         bindEventHandlers();
@@ -1734,18 +1259,14 @@ async function init() {
         throw new Error("JSON fallback failed");
       }
     } catch (jsonError) {
-      console.error("❌ JSON fallback also failed:", jsonError);
-
-      // 最终fallback: 使用FALLBACK_CITIES
-      CITY_BANK = FALLBACK_CITIES.map((city) => ({
-        ...city,
-        countryName: "Unknown",
-        flag: "",
-      }));
-
-      console.log(
-        `⚠️ Using hardcoded fallback with ${CITY_BANK.length} cities`
-      );
+      // 最終フォールバック: MAJOR_CITIESを使用
+      CITY_BANK = Object.values(MAJOR_CITIES)
+        .flat()
+        .map((city) => ({
+          ...city,
+          countryName: "Unknown",
+          flag: "",
+        }));
 
       const select = document.getElementById("countrySel");
       select.innerHTML = `
@@ -1763,8 +1284,6 @@ async function init() {
     }
     await ensureDataLoaded();
     render();
-
-    console.log("✅ Fallback initialization complete");
   }
 }
 
@@ -1777,13 +1296,11 @@ if (document.readyState === "loading") {
 }
 
 /**
- * 导出当前所有API数据到JSON文件（用于フォールバック模式）
+ * 現在の全APIデータをJSONファイルにエクスポート（フォールバックモード用）
  */
 async function exportAllDataToJson() {
   try {
-    console.log("📁 Starting data export...");
-
-    // 确保数据已加载
+    // データが読み込まれていることを確認
     await ensureDataLoaded();
 
     if (currentData.size === 0) {
@@ -1793,7 +1310,7 @@ async function exportAllDataToJson() {
       return;
     }
 
-    // 收集所有数据
+    // 全データを収集
     const exportData = {
       metadata: {
         exportDate: new Date().toISOString(),
@@ -1811,7 +1328,7 @@ async function exportAllDataToJson() {
       data: {},
     };
 
-    // 转换Map到普通对象
+    // Mapをプレーンオブジェクトに変換
     for (let [key, dataset] of currentData) {
       exportData.data[key] = {
         city: dataset.city,
@@ -1822,22 +1339,20 @@ async function exportAllDataToJson() {
       };
     }
 
-    // 创建JSON字符串
+    // JSON文字列を作成
     const jsonString = JSON.stringify(exportData, null, 2);
     const jsonSize = (jsonString.length / 1024 / 1024).toFixed(2);
 
-    console.log(`📊 Export data prepared: ${jsonSize}MB`);
-
-    // 创建下载链接
+    // ダウンロードリンクを作成
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
 
-    // 创建下载文件名（包含当前日期）
+    // ダウンロードファイル名を作成（現在の日付を含む）
     const now = new Date();
     const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
     const filename = `sun-data-fallback-${dateStr}.json`;
 
-    // 触发下载
+    // ダウンロードを実行
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
@@ -1846,10 +1361,9 @@ async function exportAllDataToJson() {
     a.click();
     document.body.removeChild(a);
 
-    // 清理URL
+    // URLをクリーンアップ
     URL.revokeObjectURL(url);
 
-    console.log(`✅ Data export completed: ${filename}`);
     alert(
       `✅ データ出力完了！\n\n` +
         `ファイル名: ${filename}\n` +
@@ -1859,52 +1373,15 @@ async function exportAllDataToJson() {
         `このファイルはフォールバックモードで使用できます。`
     );
   } catch (error) {
-    console.error("❌ Export failed:", error);
     alert(`❌ データ出力でエラーが発生しました:\n${error.message}`);
   }
 }
 
 /**
- * 示例：如何使用导出的JSON数据作为fallback
- * 这个函数展示了如何将导出的JSON文件重新加载为fallback数据
- */
-async function loadBackupDataExample() {
-  // 示例：从文件加载并使用备份数据
-  // 实际使用时，您可以将导出的JSON文件内容复制到代码中
-  const exampleBackupData = {
-    Tokyo_2024: {
-      city: "Tokyo",
-      year: 2024,
-      source: "Open-Meteo Archive API",
-      daily: [
-        {
-          date: "2024-01-01",
-          sunrise: "06:50:23",
-          sunset: "16:38:02",
-        },
-        // ... 更多数据
-      ],
-    },
-    // ... 更多城市数据
-  };
-
-  console.log("📁 Example: How to use exported backup data");
-  console.log("1. Export data using '📁 データ出力' button");
-  console.log("2. Save the JSON file as backup");
-  console.log("3. In fallback mode, load the JSON data like this:");
-  console.log("   - Replace FALLBACK_CITIES with data from JSON");
-  console.log("   - Use loadFallbackDataFromJson() function");
-
-  return exampleBackupData;
-}
-
-/**
- * 从sun-data-fallback.json文件加载fallback数据
+ * sun-data-fallback.jsonファイルからフォールバックデータを読み込み
  */
 async function loadFallbackJsonData() {
   try {
-    console.log("📁 Loading fallback data from sun-data-fallback.json...");
-
     const response = await fetch("./sun-data-fallback.json");
     if (!response.ok) {
       throw new Error(
@@ -1918,129 +1395,37 @@ async function loadFallbackJsonData() {
       throw new Error("Invalid fallback JSON format: missing data or metadata");
     }
 
-    console.log(
-      `📊 Loaded fallback JSON with ${
-        Object.keys(fallbackData.data).length
-      } entries`
-    );
-    console.log(
-      `📊 Cities in fallback: ${fallbackData.metadata.cities?.length || 0}`
-    );
-    console.log(`📊 Export date: ${fallbackData.metadata.exportDate}`);
-
     return fallbackData;
   } catch (error) {
-    console.error("❌ Failed to load fallback JSON:", error);
     throw error;
   }
 }
 
 /**
- * 使用JSON fallback数据初始化系统
- */
-async function initializeWithFallbackJson() {
-  try {
-    console.log("🔄 Initializing with JSON fallback data...");
-
-    const fallbackData = await loadFallbackJsonData();
-
-    // 从JSON数据中提取城市信息
-    if (
-      fallbackData.metadata.cities &&
-      fallbackData.metadata.cities.length > 0
-    ) {
-      CITY_BANK = fallbackData.metadata.cities.map((city) => ({
-        country: city.country,
-        countryName: city.countryName,
-        city: city.city,
-        lat: city.lat,
-        lon: city.lon,
-        tz: city.tz,
-        flag: city.flag || "",
-      }));
-    } else {
-      // 如果metadata中没有城市信息，从数据键中提取
-      const cities = new Set();
-      Object.keys(fallbackData.data).forEach((key) => {
-        const parts = key.split("_");
-        if (parts.length >= 2) {
-          cities.add(parts[0]); // 城市名
-        }
-      });
-
-      CITY_BANK = Array.from(cities).map((cityName) => ({
-        country: "UNKNOWN",
-        countryName: "Unknown",
-        city: cityName,
-        lat: 0,
-        lon: 0,
-        tz: "UTC",
-        flag: "",
-      }));
-    }
-
-    // 加载所有fallback数据到currentData
-    currentData.clear();
-    for (const [key, dataset] of Object.entries(fallbackData.data)) {
-      // 确保数据格式正确
-      const processedDataset = {
-        ...dataset,
-        source: "json-fallback",
-        lastUpdated: dataset.lastUpdated || fallbackData.metadata.exportDate,
-      };
-
-      currentData.set(key, processedDataset);
-    }
-
-    console.log(`✅ JSON fallback initialization complete:`);
-    console.log(`   - Cities: ${CITY_BANK.length}`);
-    console.log(`   - Data entries: ${currentData.size}`);
-    console.log(`   - Data source: JSON fallback`);
-
-    return {
-      success: true,
-      cities: CITY_BANK.length,
-      dataEntries: currentData.size,
-    };
-  } catch (error) {
-    console.error("❌ JSON fallback initialization failed:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-}
-
-/**
- * 从JSON备用文件中获取城市数据
+ * JSONバックアップファイルから都市データを取得
  */
 async function fetchFromJsonFallback(city, year) {
   try {
-    // 尝试从缓存中获取JSON数据
+    // キャッシュからJSONデータの取得を試行
     let fallbackData = window.fallbackJsonData;
 
     if (!fallbackData) {
-      console.log("🔄 Loading fallback JSON data...");
       const response = await fetch("./sun-data-fallback.json");
       if (!response.ok) {
         throw new Error(`Failed to fetch JSON fallback: ${response.status}`);
       }
 
       fallbackData = await response.json();
-      // 缓存到内存中以避免重复加载
+      // メモリにキャッシュして重複読み込みを回避
       window.fallbackJsonData = fallbackData;
-      console.log(
-        `✅ JSON fallback data loaded: ${fallbackData.metadata.totalEntries} entries`
-      );
     }
 
-    // 查找对应城市和年份的数据
+    // 対応する都市と年のデータを検索
     const dataKey = `${city.city}_${year}`;
-    console.log(`🔍 Looking for data key: "${dataKey}"`);
 
     let cityData = fallbackData.data[dataKey];
 
-    // 如果精确匹配失败，尝试查找包含城市名称的键
+    // 完全一致が失敗した場合、都市名を含むキーを検索
     if (!cityData) {
       const availableKeys = Object.keys(fallbackData.data);
       const matchingKey = availableKeys.find((key) => {
@@ -2049,26 +1434,12 @@ async function fetchFromJsonFallback(city, year) {
       });
 
       if (matchingKey) {
-        console.log(
-          `🔄 Found alternative key: "${matchingKey}" for ${city.city}`
-        );
         cityData = fallbackData.data[matchingKey];
       } else {
-        // 尝试调试：列出可能相关的键
-        const similarKeys = availableKeys.filter(
-          (key) =>
-            key.toLowerCase().includes(city.city.toLowerCase()) ||
-            city.city.toLowerCase().includes(key.split("_")[0].toLowerCase())
-        );
-        console.warn(
-          `❌ No JSON data found for "${dataKey}". Similar keys:`,
-          similarKeys.slice(0, 5)
-        );
         throw new Error(`No JSON data found for ${city.city} in ${year}`);
       }
     }
 
-    console.log(`✅ Found JSON data for ${city.city}`); // 返回与API格式一致的数据结构
     return {
       country: city.country,
       city: city.city,
@@ -2081,66 +1452,6 @@ async function fetchFromJsonFallback(city, year) {
       lastUpdated: cityData.lastUpdated,
     };
   } catch (error) {
-    console.error(
-      `❌ Failed to load from JSON fallback for ${city.city}:`,
-      error.message
-    );
     throw error;
   }
-}
-
-// 测试时间转换函数
-function testTimeConversion() {
-  console.log("🧪 Testing time conversion for Tokyo:");
-
-  // Tokyo UTC+9
-  // 测试日出时间 05:12
-  const sunrise = localTimeToUTCMinutes("2025-08-31T05:12", "Asia/Tokyo");
-  console.log(
-    `Tokyo sunrise: 05:12 JST -> ${Math.floor(sunrise / 60)}:${String(
-      sunrise % 60
-    ).padStart(2, "0")} UTC (${sunrise} minutes)`
-  );
-
-  // 测试日落时间 18:10
-  const sunset = localTimeToUTCMinutes("2025-08-31T18:10", "Asia/Tokyo");
-  console.log(
-    `Tokyo sunset: 18:10 JST -> ${Math.floor(sunset / 60)}:${String(
-      sunset % 60
-    ).padStart(2, "0")} UTC (${sunset} minutes)`
-  );
-
-  // 测试当前时间 23:00 UTC (1380分钟)
-  const currentTime = 1380; // 23:00 UTC
-  console.log(`Current time: 23:00 UTC (${currentTime} minutes)`);
-
-  // 白天判定逻辑（新逻辑：默认点灯，只在白天灭灯）
-  let isDaytime;
-  if (sunrise > sunset) {
-    // 跨日期情况：白天是从sunrise到午夜，然后从午夜到sunset
-    isDaytime = currentTime >= sunrise || currentTime <= sunset;
-    console.log(
-      `Cross-date case: ${currentTime} >= ${sunrise} || ${currentTime} <= ${sunset} = ${isDaytime}`
-    );
-  } else {
-    // 正常情况：白天是从sunrise到sunset
-    isDaytime = currentTime >= sunrise && currentTime <= sunset;
-    console.log(
-      `Normal case: ${currentTime} >= ${sunrise} && ${currentTime} <= ${sunset} = ${isDaytime}`
-    );
-  }
-
-  const isNight = !isDaytime;
-  console.log(`Is it daytime at 23:00 UTC? ${isDaytime}`);
-  console.log(
-    `Should Tokyo be lit at 23:00 UTC? ${isNight} (默认点灯，白天灭灯)`
-  );
-
-  // 计算预期结果
-  console.log("📊 Expected behavior:");
-  console.log("Tokyo日出: 05:12 JST = 20:12 UTC (1212分钟)");
-  console.log("Tokyo日落: 18:10 JST = 09:10 UTC (550分钟)");
-  console.log("跨日期情况：白天 = 20:12 UTC - 09:10 UTC (第二天)");
-  console.log("23:00 UTC (1380分钟) >= 1212分钟 = true，所以是白天");
-  console.log("因此Tokyo在23:00 UTC时应该灭灯（白天）");
 }
