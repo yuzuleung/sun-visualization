@@ -81,10 +81,10 @@ function getFlagEmoji(countryCode) {
     US: "🇺🇸",
     GB: "🇬🇧",
     FR: "🇫🇷",
-    DE: "��",
+    DE: "🇩🇪",
     IT: "🇮🇹",
     ES: "🇪🇸",
-    RU: "��",
+    RU: "🇷🇺",
     IN: "🇮🇳",
     BR: "🇧🇷",
     CA: "🇨🇦",
@@ -349,8 +349,11 @@ async function fetchRealSunTimes(city, year) {
  */
 async function fetchYearSunTimes(city, year) {
   try {
-    // まずArchive APIを試行
-    return await fetchRealSunTimes(city, year);
+    // 临时注释掉API调用 - 直接使用JSON数据避免调用限制
+    // return await fetchRealSunTimes(city, year);
+
+    // 直接使用JSON文件数据
+    return await fetchFromJsonFallback(city, year);
   } catch (apiError) {
     try {
       // APIが失敗した場合、JSONファイルからフォールバック
@@ -597,6 +600,12 @@ function updateDataSourceStatus(successfulResults) {
   const archiveCount = sourceCounts["open-meteo-archive"] || 0;
   const jsonFallbackCount = sourceCounts["json-fallback"] || 0;
 
+  // 临时使用JSON测试模式 - API已注释
+  dataSourceEl.textContent = "JSONファイル (テスト中)";
+  dataStatusEl.innerHTML = `🧪 JSONテストモード使用中 (${jsonFallbackCount}/${totalCities} 都市)`;
+  dataStatusEl.style.color = "#f97316"; // orange
+
+  /* 原来的API状态显示代码已暂时禁用
   if (archiveCount > jsonFallbackCount) {
     dataSourceEl.textContent = "Open-Meteo Archive API";
     dataStatusEl.innerHTML = `🌐 リアルデータ使用中 (${archiveCount}/${totalCities} 都市)`;
@@ -610,6 +619,7 @@ function updateDataSourceStatus(successfulResults) {
     dataStatusEl.innerHTML = `❌ データ読み込み失敗`;
     dataStatusEl.style.color = "#ef4444"; // red
   }
+  */
 }
 
 /**
