@@ -24,8 +24,9 @@ async function fetchCountriesAndCities() {
   }
 
   try {
-    // 直接JSONファイルから読み込み
-    const response = await fetch("./sun-data-fallback.json");
+    // 直接JSONファイルから読み込み（缓存破坏参数）
+    const cacheBuster = Date.now();
+    const response = await fetch(`./sun-data-fallback.json?v=${cacheBuster}`);
     if (!response.ok) {
       throw new Error(`JSON fallback API error: ${response.status}`);
     }
@@ -92,6 +93,10 @@ function getFlagEmoji(countryCode) {
     ZA: "🇿🇦",
     AQ: "🇦🇶",
     GL: "🇬🇱",
+    EC: "🇪🇨",
+    CO: "🇨🇴",
+    KE: "🇰🇪",
+    UG: "🇺🇬",
   };
   return flagMap[countryCode] || "🌍";
 }
@@ -705,11 +710,27 @@ function render() {
     // 昼間判定：簡易ロジック - 日の出から日の入りの間のみ昼間、その他の時間は点灯
     // ただし日付をまたぐ場合は正しく処理
     let isDaytime;
-    if (sunriseM > sunsetM) {
+
+    // 检查是否为极地特殊情况
+    const sunriseDate = today.sunrise;
+    const sunsetDate = today.sunset;
+    const sunriseDay = new Date(sunriseDate).getUTCDate();
+    const sunsetDay = new Date(sunsetDate).getUTCDate();
+
+    // 极地特殊情况处理
+    if (sunriseM === 0 && sunsetM === 0) {
+      if (sunsetDay > sunriseDay) {
+        // McMurdo类型：sunrise 00:00, sunset 第二天00:00 = 极昼 (24小时白天)
+        isDaytime = true;
+      } else {
+        // Ilulissat类型：sunrise 00:00, sunset 同一天00:00 = 极夜 (24小时黑夜)
+        isDaytime = false;
+      }
+    } else if (sunriseM === sunsetM) {
+      // 其他相等情况，可能是数据异常，默认点灯
+      isDaytime = false;
+    } else if (sunriseM > sunsetM) {
       // 日付跨ぎ状況：sunrise > sunset (例：東京 20:12 UTC > 09:10 UTC)
-      // これは日の出が前日、日の入りが当日であることを意味する
-      // 実際の昼間は：日の出から午夜まで、そして午夜から日の入りまで
-      // つまり：tMin >= sunriseM (当日夜) または tMin <= sunsetM (翌日朝)
       isDaytime = tMin >= sunriseM || tMin <= sunsetM;
     } else {
       // 正常ケース：sunrise < sunset (例：ロンドン 05:30 < 18:30)
@@ -1019,7 +1040,8 @@ async function exportAllDataToJson() {
  */
 async function loadFallbackJsonData() {
   try {
-    const response = await fetch("./sun-data-fallback.json");
+    const cacheBuster = Date.now();
+    const response = await fetch(`./sun-data-fallback.json?v=${cacheBuster}`);
     if (!response.ok) {
       throw new Error(
         `Failed to fetch fallback JSON: ${response.status} ${response.statusText}`
@@ -1047,7 +1069,8 @@ async function fetchFromJsonFallback(city, year) {
     let fallbackData = window.fallbackJsonData;
 
     if (!fallbackData) {
-      const response = await fetch("./sun-data-fallback.json");
+      const cacheBuster = Date.now();
+      const response = await fetch(`./sun-data-fallback.json?v=${cacheBuster}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch JSON fallback: ${response.status}`);
       }
