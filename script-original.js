@@ -24,7 +24,7 @@ async function fetchCountriesAndCities() {
   }
 
   try {
-    // 直接JSONファイルから読み込み（缓存破坏参数）
+    // 直接JSONファイルから読み込み（キャッシュ破棄パラメータ）
     const cacheBuster = Date.now();
     const response = await fetch(`./sun-data-fallback.json?v=${cacheBuster}`);
     if (!response.ok) {
@@ -354,10 +354,10 @@ async function fetchRealSunTimes(city, year) {
  */
 async function fetchYearSunTimes(city, year) {
   try {
-    // 临时注释掉API调用 - 直接使用JSON数据避免调用限制
+    // 一時的にAPI呼び出しをコメントアウト - API制限回避のため直接JSON使用
     // return await fetchRealSunTimes(city, year);
 
-    // 直接使用JSON文件数据
+    // 直接JSONファイルデータを使用
     return await fetchFromJsonFallback(city, year);
   } catch (apiError) {
     try {
@@ -605,12 +605,12 @@ function updateDataSourceStatus(successfulResults) {
   const archiveCount = sourceCounts["open-meteo-archive"] || 0;
   const jsonFallbackCount = sourceCounts["json-fallback"] || 0;
 
-  // 临时使用JSON测试模式 - API已注释
+  // 一時的なJSONテストモード使用 - API機能はコメントアウト中
   dataSourceEl.textContent = "JSONファイル (テスト中)";
   dataStatusEl.innerHTML = `🧪 JSONテストモード使用中 (${jsonFallbackCount}/${totalCities} 都市)`;
   dataStatusEl.style.color = "#f97316"; // orange
 
-  /* 原来的API状态显示代码已暂时禁用
+  /* 元のAPI状態表示コードは一時的に無効化
   if (archiveCount > jsonFallbackCount) {
     dataSourceEl.textContent = "Open-Meteo Archive API";
     dataStatusEl.innerHTML = `🌐 リアルデータ使用中 (${archiveCount}/${totalCities} 都市)`;
@@ -711,23 +711,23 @@ function render() {
     // ただし日付をまたぐ場合は正しく処理
     let isDaytime;
 
-    // 检查是否为极地特殊情况
+    // 極地特殊状況の確認
     const sunriseDate = today.sunrise;
     const sunsetDate = today.sunset;
     const sunriseDay = new Date(sunriseDate).getUTCDate();
     const sunsetDay = new Date(sunsetDate).getUTCDate();
 
-    // 极地特殊情况处理
+    // 極地特殊状況の処理
     if (sunriseM === 0 && sunsetM === 0) {
       if (sunsetDay > sunriseDay) {
-        // McMurdo类型：sunrise 00:00, sunset 第二天00:00 = 极昼 (24小时白天)
+        // McMurdo型：sunrise 00:00, sunset 翌日00:00 = 白夜 (24時間昼間)
         isDaytime = true;
       } else {
-        // Ilulissat类型：sunrise 00:00, sunset 同一天00:00 = 极夜 (24小时黑夜)
+        // Ilulissat型：sunrise 00:00, sunset 同日00:00 = 極夜 (24時間夜間)
         isDaytime = false;
       }
     } else if (sunriseM === sunsetM) {
-      // 其他相等情况，可能是数据异常，默认点灯
+      // その他の同値状況、データ異常の可能性、デフォルト点灯
       isDaytime = false;
     } else if (sunriseM > sunsetM) {
       // 日付跨ぎ状況：sunrise > sunset (例：東京 20:12 UTC > 09:10 UTC)

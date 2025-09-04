@@ -130,7 +130,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: 2px solid #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-top: -2px; /* 进一步微调让圆点垂直居中 */
+  margin-top: -2px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
@@ -144,7 +144,7 @@ input[type="range"]::-moz-range-thumb {
   transition: all 0.2s ease;
   -moz-appearance: none;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  margin-top: -2px; /* Firefox也使用相同的微调值 */
+  margin-top: -2px; /* Firefoxも同じ微調整値を使用 */
 }
 
 /* Hover Effects */
