@@ -7,6 +7,7 @@
 </head>
 <body>
   <header>
+    <h1 class="project-title">眠らない地球 — APIデータで描く都市の灯火</h1>
     <div class="row">
       <label>国:
         <select id="countrySel">
@@ -32,7 +33,7 @@
       <button id="playBtn">▶ 再生</button>
     </div>
     <div class="hint">
-      都市の夜間点灯表示：<b>当日日没 → 翌日日出</b>の時間帯に点灯。<b>「再生」</b>で24時間の変化、<b>「年間再生」</b>で1年間の変化をアニメーション。<br />21ヶ国53都市のデータを取得、単一国家選択で詳細表示可能。<span id="dataSource">Open-Meteo Archive API</span>から年間天文データを取得。
+      都市の夜間点灯表示：<b>当日日没 → 翌日日出</b>の時間帯に点灯。<b>「再生」</b>で24時間の変化、<b>「年間再生」</b>で1年間の変化をアニメーション。<br />21ヶ国53都市のデータを取得、単一国家選択で詳細表示可能。<span id="dataSource">Open-Meteo Archive API</span>から年間日出日没データを取得。
       <small id="dataStatus">🌐 リアルデータ使用中</small>
     </div>
   </header>
@@ -40,7 +41,7 @@
   <div id="wrap">
     <svg id="map" viewBox="0 0 1100 600" preserveAspectRatio="xMidYMid meet"></svg>
     <div class="legend">
-      Data: Open-Meteo Astronomy API + JSON Fallback / Map: Natural Earth / Projection: d3.geoNaturalEarth1
+      Data: Open-Meteo Archive API + JSON Fallback / Projection: d3.geoNaturalEarth1
     </div>
   </div>
 

@@ -8,6 +8,17 @@
   --gold-glow: rgba(255, 215, 0, 0.9);
 }
 
+/* Project Title */
+.project-title {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace !important;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0.5rem 0;
+  padding: 0;
+  letter-spacing: 0.02em;
+}
+
 /* Universal Font - Apply SF Mono to ALL elements */
 * {
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace !important;
