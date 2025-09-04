@@ -9,153 +9,7 @@
 let CITY_BANK = [];
 
 /**
- * 主要都市データ（国コード別）
- * REST Countries APIでは都市データが取得できないため、
- * 主要都市データを国別に定義
- */
-const MAJOR_CITIES = {
-  JP: [
-    { city: "Tokyo", lat: 35.6828, lon: 139.7595, tz: "Asia/Tokyo" },
-    { city: "Osaka", lat: 34.6937, lon: 135.5023, tz: "Asia/Tokyo" },
-    { city: "Yokohama", lat: 35.4437, lon: 139.638, tz: "Asia/Tokyo" },
-  ],
-  CN: [
-    { city: "Beijing", lat: 39.9042, lon: 116.4074, tz: "Asia/Shanghai" },
-    { city: "Shanghai", lat: 31.2304, lon: 121.4737, tz: "Asia/Shanghai" },
-    { city: "Guangzhou", lat: 23.1291, lon: 113.2644, tz: "Asia/Shanghai" },
-  ],
-  KR: [
-    { city: "Seoul", lat: 37.5665, lon: 126.978, tz: "Asia/Seoul" },
-    { city: "Busan", lat: 35.1796, lon: 129.0756, tz: "Asia/Seoul" },
-    { city: "Incheon", lat: 37.4563, lon: 126.7052, tz: "Asia/Seoul" },
-  ],
-  US: [
-    { city: "New York", lat: 40.7128, lon: -74.006, tz: "America/New_York" },
-    {
-      city: "Los Angeles",
-      lat: 34.0522,
-      lon: -118.2437,
-      tz: "America/Los_Angeles",
-    },
-    { city: "Chicago", lat: 41.8781, lon: -87.6298, tz: "America/Chicago" },
-  ],
-  GB: [
-    { city: "London", lat: 51.5072, lon: -0.1276, tz: "Europe/London" },
-    { city: "Manchester", lat: 53.4808, lon: -2.2426, tz: "Europe/London" },
-    { city: "Birmingham", lat: 52.4862, lon: -1.8904, tz: "Europe/London" },
-  ],
-  FR: [
-    { city: "Paris", lat: 48.8566, lon: 2.3522, tz: "Europe/Paris" },
-    { city: "Lyon", lat: 45.764, lon: 4.8357, tz: "Europe/Paris" },
-    { city: "Marseille", lat: 43.2965, lon: 5.3698, tz: "Europe/Paris" },
-  ],
-  DE: [
-    { city: "Berlin", lat: 52.52, lon: 13.405, tz: "Europe/Berlin" },
-    { city: "Munich", lat: 48.1351, lon: 11.582, tz: "Europe/Berlin" },
-    { city: "Hamburg", lat: 53.5511, lon: 9.9937, tz: "Europe/Berlin" },
-  ],
-  IT: [
-    { city: "Rome", lat: 41.9028, lon: 12.4964, tz: "Europe/Rome" },
-    { city: "Milan", lat: 45.4642, lon: 9.19, tz: "Europe/Rome" },
-    { city: "Naples", lat: 40.8518, lon: 14.2681, tz: "Europe/Rome" },
-  ],
-  ES: [
-    { city: "Madrid", lat: 40.4168, lon: -3.7038, tz: "Europe/Madrid" },
-    { city: "Barcelona", lat: 41.3851, lon: 2.1734, tz: "Europe/Madrid" },
-    { city: "Valencia", lat: 39.4699, lon: -0.3763, tz: "Europe/Madrid" },
-  ],
-  RU: [
-    { city: "Moscow", lat: 55.7558, lon: 37.6173, tz: "Europe/Moscow" },
-    {
-      city: "Saint Petersburg",
-      lat: 59.9311,
-      lon: 30.3609,
-      tz: "Europe/Moscow",
-    },
-    { city: "Novosibirsk", lat: 55.0084, lon: 82.9357, tz: "Asia/Novosibirsk" },
-  ],
-  IN: [
-    { city: "New Delhi", lat: 28.6139, lon: 77.209, tz: "Asia/Kolkata" },
-    { city: "Mumbai", lat: 19.076, lon: 72.8777, tz: "Asia/Kolkata" },
-    { city: "Bangalore", lat: 12.9716, lon: 77.5946, tz: "Asia/Kolkata" },
-  ],
-  BR: [
-    {
-      city: "São Paulo",
-      lat: -23.5558,
-      lon: -46.6396,
-      tz: "America/Sao_Paulo",
-    },
-    {
-      city: "Rio de Janeiro",
-      lat: -22.9068,
-      lon: -43.1729,
-      tz: "America/Sao_Paulo",
-    },
-    { city: "Brasília", lat: -15.8267, lon: -47.9218, tz: "America/Sao_Paulo" },
-  ],
-  CA: [
-    { city: "Toronto", lat: 43.6532, lon: -79.3832, tz: "America/Toronto" },
-    {
-      city: "Vancouver",
-      lat: 49.2827,
-      lon: -123.1207,
-      tz: "America/Vancouver",
-    },
-    { city: "Montreal", lat: 45.5017, lon: -73.5673, tz: "America/Toronto" },
-  ],
-  AU: [
-    { city: "Sydney", lat: -33.8688, lon: 151.2093, tz: "Australia/Sydney" },
-    {
-      city: "Melbourne",
-      lat: -37.8136,
-      lon: 144.9631,
-      tz: "Australia/Melbourne",
-    },
-    {
-      city: "Brisbane",
-      lat: -27.4698,
-      lon: 153.0251,
-      tz: "Australia/Brisbane",
-    },
-  ],
-  ZA: [
-    {
-      city: "Cape Town",
-      lat: -33.9249,
-      lon: 18.4241,
-      tz: "Africa/Johannesburg",
-    },
-    {
-      city: "Johannesburg",
-      lat: -26.2041,
-      lon: 28.0473,
-      tz: "Africa/Johannesburg",
-    },
-    { city: "Durban", lat: -29.8587, lon: 31.0218, tz: "Africa/Johannesburg" },
-  ],
-  AQ: [
-    {
-      city: "McMurdo Station",
-      lat: -77.8419,
-      lon: 166.6863,
-      tz: "Antarctica/McMurdo",
-    },
-    {
-      city: "Rothera Research Station",
-      lat: -67.5681,
-      lon: -68.1272,
-      tz: "Antarctica/Rothera",
-    },
-  ],
-  GL: [
-    { city: "Nuuk", lat: 64.1836, lon: -51.7214, tz: "America/Nuuk" },
-    { city: "Ilulissat", lat: 69.2196, lon: -51.0986, tz: "America/Nuuk" },
-  ],
-};
-
-/**
- * REST Countries APIから国データを取得し、都市データを構築
+ * JSONファイルから国データを取得し、都市データを構築
  */
 async function fetchCountriesAndCities() {
   const cacheKey = "countries_cities_cache";
@@ -170,41 +24,35 @@ async function fetchCountriesAndCities() {
   }
 
   try {
-    const response = await fetch(
-      "https://restcountries.com/v3.1/all?fields=name,cca2,population,flag"
-    );
-
+    // 直接JSONファイルから読み込み
+    const response = await fetch("./sun-data-fallback.json");
     if (!response.ok) {
-      throw new Error(`REST Countries API error: ${response.status}`);
+      throw new Error(`JSON fallback API error: ${response.status}`);
     }
 
-    const countries = await response.json();
+    const fallbackData = await response.json();
+    // JSONデータをキャッシュ
+    window.fallbackJsonData = fallbackData;
 
-    // 人口の多い順にソートし、主要都市データがある国を優先
-    const sortedCountries = countries
-      .filter((country) => MAJOR_CITIES[country.cca2])
-      .sort((a, b) => (b.population || 0) - (a.population || 0))
-      .slice(0, 20); // 上位20ヶ国に制限
+    // JSONファイルから都市と国データを構築
+    const cities = fallbackData.metadata.cities;
+
+    // 国家リストを構築
+    const countryMap = new Map();
+    cities.forEach((city) => {
+      if (!countryMap.has(city.country)) {
+        countryMap.set(city.country, {
+          cca2: city.country,
+          name: { common: city.countryName },
+          flag: getFlagEmoji(city.country),
+        });
+      }
+    });
 
     const result = {
-      countries: sortedCountries,
-      cities: [],
+      countries: Array.from(countryMap.values()),
+      cities: cities,
     };
-
-    // 各国の主要都市を追加
-    for (const country of sortedCountries) {
-      const countryCode = country.cca2;
-      const cities = MAJOR_CITIES[countryCode] || [];
-
-      cities.forEach((city) => {
-        result.cities.push({
-          country: countryCode,
-          countryName: country.name.common,
-          flag: country.flag,
-          ...city,
-        });
-      });
-    }
 
     // キャッシュに保存
     localStorage.setItem(
@@ -217,29 +65,35 @@ async function fetchCountriesAndCities() {
 
     return result;
   } catch (error) {
-    // フォールバック: 静的データを使用
-    return {
-      countries: [
-        { cca2: "JP", name: { common: "Japan" }, flag: "🇯🇵" },
-        { cca2: "CN", name: { common: "China" }, flag: "🇨🇳" },
-        { cca2: "KR", name: { common: "South Korea" }, flag: "🇰🇷" },
-        { cca2: "US", name: { common: "United States" }, flag: "🇺🇸" },
-        { cca2: "GB", name: { common: "United Kingdom" }, flag: "🇬🇧" },
-        { cca2: "FR", name: { common: "France" }, flag: "🇫🇷" },
-        { cca2: "ZA", name: { common: "South Africa" }, flag: "🇿🇦" },
-        { cca2: "BR", name: { common: "Brazil" }, flag: "🇧🇷" },
-        { cca2: "AQ", name: { common: "Antarctica" }, flag: "🇦🇶" },
-        { cca2: "GL", name: { common: "Greenland" }, flag: "🇬🇱" },
-      ],
-      cities: Object.values(MAJOR_CITIES)
-        .flat()
-        .map((city) => ({
-          ...city,
-          countryName: "Unknown",
-          flag: "",
-        })),
-    };
+    console.error("Failed to load city data:", error);
+    throw new Error(`データの読み込みに失敗しました: ${error.message}`);
   }
+}
+
+/**
+ * 国コードから国旗絵文字を取得
+ */
+function getFlagEmoji(countryCode) {
+  const flagMap = {
+    JP: "🇯🇵",
+    CN: "🇨🇳",
+    KR: "🇰🇷",
+    US: "🇺🇸",
+    GB: "🇬🇧",
+    FR: "🇫🇷",
+    DE: "��",
+    IT: "🇮🇹",
+    ES: "🇪🇸",
+    RU: "��",
+    IN: "🇮🇳",
+    BR: "🇧🇷",
+    CA: "🇨🇦",
+    AU: "🇦🇺",
+    ZA: "🇿🇦",
+    AQ: "🇦🇶",
+    GL: "🇬🇱",
+  };
+  return flagMap[countryCode] || "🌍";
 }
 
 /**
@@ -279,10 +133,7 @@ let countrySel,
   dayLabel,
   timeLabel,
   playBtn,
-  yearPlayBtn,
-  clearCacheBtn,
-  exportDataBtn,
-  testApiBtn;
+  yearPlayBtn;
 let svg, gMap, gCities, projection, geoPath;
 
 /* ========= 2) API関数 ========= */
@@ -902,7 +753,7 @@ function renderYearAnimation() {
     // フレーム毎に1日進行、時刻は固定
     let nextDay = currentDay + 1;
     const currentYear = +yearSel.value;
-    const maxDay = currentYear === 2025 ? 244 : 365; // 2025年は9月1日まで制限
+    const maxDay = currentYear === 2025 ? 243 : 365; // 2025年は8月31日まで制限
 
     if (nextDay > maxDay) {
       nextDay = 1; // ループ再生
@@ -910,10 +761,10 @@ function renderYearAnimation() {
 
     daySlider.value = nextDay;
 
-    // アニメーション継続、毎秒約4日の速度
+    // アニメーション継続、毎秒約12日の速度
     yearFrameReq = setTimeout(() => {
       requestAnimationFrame(renderYearAnimation);
-    }, 250); // 250ms = 毎秒4フレーム = 毎秒4日
+    }, 80); // 80ms = 毎秒12フレーム = 毎秒12日
   }
 }
 
@@ -927,9 +778,6 @@ function bindEventHandlers() {
     { name: "timeSlider", element: timeSlider },
     { name: "playBtn", element: playBtn },
     { name: "yearPlayBtn", element: yearPlayBtn },
-    { name: "clearCacheBtn", element: clearCacheBtn },
-    { name: "exportDataBtn", element: exportDataBtn },
-    { name: "testApiBtn", element: testApiBtn },
   ];
 
   for (const { name, element } of elements) {
@@ -949,10 +797,10 @@ function bindEventHandlers() {
 
     // 年に基づいて日付範囲を設定
     if (selectedYear === 2025) {
-      // 2025年：9月1日（第244日）まで
-      daySlider.max = 244;
-      if (currentDay > 244) {
-        daySlider.value = 244;
+      // 2025年：8月31日（第243日）まで
+      daySlider.max = 243;
+      if (currentDay > 243) {
+        daySlider.value = 243;
       }
     } else {
       // その他の年：完全365日
@@ -1002,82 +850,12 @@ function bindEventHandlers() {
     }
   });
 
-  clearCacheBtn.addEventListener("click", () => {
-    if (confirm("キャッシュされたデータをすべてクリアしますか？")) {
-      // LocalStorageをクリア
-      const keys = Object.keys(localStorage);
-      const removedKeys = [];
-
-      keys.forEach((key) => {
-        if (key.startsWith("archive_") || key === "countries_cities_cache") {
-          localStorage.removeItem(key);
-          removedKeys.push(key);
-        }
-      });
-
-      // データマップもクリア
-      currentData.clear();
-
-      alert(`キャッシュをクリアしました (${removedKeys.length}件)`);
-
-      // データを再読み込み
-      ensureDataLoaded().then(() => render());
-    }
-  });
-
-  exportDataBtn.addEventListener("click", async () => {
-    await exportAllDataToJson();
-  });
-
-  testApiBtn.addEventListener("click", async () => {
-    // テスト: 現在設定での夜間判定
-    const currentYear = +yearSel.value;
-    const currentDay = +daySlider.value;
-    const currentTime = +timeSlider.value;
-
-    // 各都市の夜間判定テスト（簡略版）
-    const cities = CITY_BANK.slice(0, 5);
-
-    for (const city of cities) {
-      const key = `${city.city}_${currentYear}`;
-      const dataset = currentData.get(key);
-
-      if (!dataset || !dataset.daily) {
-        continue;
-      }
-
-      const dayIndex = Math.max(
-        0,
-        Math.min(currentDay - 1, dataset.daily.length - 1)
-      );
-      const dayData = dataset.daily[dayIndex];
-
-      if (!dayData) {
-        continue;
-      }
-
-      const sunriseM = toUTCMinutes(dayData.sunrise, city.tz);
-      const sunsetM = toUTCMinutes(dayData.sunset, city.tz);
-
-      // 夜間判定ロジック
-      const isNight =
-        sunriseM > sunsetM
-          ? currentTime <= sunsetM || currentTime >= sunriseM
-          : currentTime < sunriseM || currentTime >= sunsetM;
-    }
-
-    // 強制再レンダリング
-    render();
-
-    alert(`🎯 夜間点灯テスト完了\n\n現在時刻: ${hhmm(currentTime)} UTC`);
-  });
-
   // daySliderの最大値を初期化
   const initialYear = +yearSel.value;
   if (initialYear === 2025) {
-    daySlider.max = 244;
-    if (+daySlider.value > 244) {
-      daySlider.value = 244;
+    daySlider.max = 243;
+    if (+daySlider.value > 243) {
+      daySlider.value = 243;
     }
   } else {
     daySlider.max = 365;
@@ -1097,9 +875,6 @@ async function init() {
     timeLabel = document.getElementById("timeLabel");
     playBtn = document.getElementById("playBtn");
     yearPlayBtn = document.getElementById("yearPlayBtn");
-    clearCacheBtn = document.getElementById("clearCacheBtn");
-    exportDataBtn = document.getElementById("exportDataBtn");
-    testApiBtn = document.getElementById("testApiBtn");
 
     // D3要素初期化
     svg = d3.select("#map");
@@ -1111,75 +886,10 @@ async function init() {
     // 地図描画
     await initMap();
 
-    // 優先的にJSONファイルから都市リストを読み込み
-    let countries, cities;
-
-    try {
-      const response = await fetch("./sun-data-fallback.json");
-      if (response.ok) {
-        const fallbackData = await response.json();
-        // JSONデータをキャッシュ
-        window.fallbackJsonData = fallbackData;
-
-        // JSONファイル中の完全都市リストを使用
-        cities = fallbackData.metadata.cities;
-
-        // 国家リストを構築
-        const countryMap = new Map();
-        cities.forEach((city) => {
-          if (!countryMap.has(city.country)) {
-            countryMap.set(city.country, {
-              cca2: city.country,
-              name: { common: city.countryName },
-              flag:
-                city.country === "JP"
-                  ? "🇯🇵"
-                  : city.country === "CN"
-                  ? "🇨🇳"
-                  : city.country === "KR"
-                  ? "🇰🇷"
-                  : city.country === "US"
-                  ? "🇺🇸"
-                  : city.country === "GB"
-                  ? "🇬🇧"
-                  : city.country === "FR"
-                  ? "🇫🇷"
-                  : city.country === "DE"
-                  ? "🇩🇪"
-                  : city.country === "IT"
-                  ? "🇮🇹"
-                  : city.country === "ES"
-                  ? "🇪🇸"
-                  : city.country === "RU"
-                  ? "🇷🇺"
-                  : city.country === "IN"
-                  ? "🇮🇳"
-                  : city.country === "BR"
-                  ? "🇧🇷"
-                  : city.country === "CA"
-                  ? "🇨🇦"
-                  : city.country === "AU"
-                  ? "🇦🇺"
-                  : city.country === "ZA"
-                  ? "🇿🇦"
-                  : city.country === "AQ"
-                  ? "🇦🇶"
-                  : city.country === "GL"
-                  ? "🇬🇱"
-                  : "🌍",
-            });
-          }
-        });
-        countries = Array.from(countryMap.values());
-      } else {
-        throw new Error(`Failed to fetch JSON: ${response.status}`);
-      }
-    } catch (error) {
-      // JSON読み込み失敗時は通常のAPI経由で取得
-      const result = await fetchCountriesAndCities();
-      countries = result.countries;
-      cities = result.cities;
-    }
+    // JSONファイルから都市データを読み込み
+    const result = await fetchCountriesAndCities();
+    const countries = result.countries;
+    const cities = result.cities;
 
     // グローバル変数に設定
     CITY_BANK = cities;
@@ -1197,93 +907,10 @@ async function init() {
 
     render();
   } catch (error) {
-    // JSONフォールバックを直接使用
-    try {
-      const response = await fetch("./sun-data-fallback.json");
-      if (response.ok) {
-        const fallbackData = await response.json();
-        window.fallbackJsonData = fallbackData;
-
-        CITY_BANK = fallbackData.metadata.cities;
-        countries = Array.from(
-          new Set(CITY_BANK.map((city) => city.country))
-        ).map((countryCode) => ({
-          cca2: countryCode,
-          name: {
-            common:
-              CITY_BANK.find((city) => city.country === countryCode)
-                ?.countryName || countryCode,
-          },
-          flag:
-            countryCode === "JP"
-              ? "🇯🇵"
-              : countryCode === "CN"
-              ? "🇨🇳"
-              : countryCode === "KR"
-              ? "🇰🇷"
-              : countryCode === "US"
-              ? "🇺🇸"
-              : countryCode === "GB"
-              ? "🇬🇧"
-              : countryCode === "FR"
-              ? "🇫🇷"
-              : countryCode === "DE"
-              ? "🇩🇪"
-              : countryCode === "IT"
-              ? "🇮🇹"
-              : countryCode === "ES"
-              ? "🇪🇸"
-              : countryCode === "RU"
-              ? "🇷🇺"
-              : countryCode === "IN"
-              ? "🇮🇳"
-              : countryCode === "BR"
-              ? "🇧🇷"
-              : countryCode === "CA"
-              ? "🇨🇦"
-              : countryCode === "AU"
-              ? "🇦🇺"
-              : countryCode === "ZA"
-              ? "🇿🇦"
-              : countryCode === "AQ"
-              ? "🇦🇶"
-              : countryCode === "GL"
-              ? "🇬🇱"
-              : "🌍",
-        }));
-
-        updateCountryOptions(countries);
-        drawCityMarkers(CITY_BANK);
-        bindEventHandlers();
-      } else {
-        throw new Error("JSON fallback failed");
-      }
-    } catch (jsonError) {
-      // 最終フォールバック: MAJOR_CITIESを使用
-      CITY_BANK = Object.values(MAJOR_CITIES)
-        .flat()
-        .map((city) => ({
-          ...city,
-          countryName: "Unknown",
-          flag: "",
-        }));
-
-      const select = document.getElementById("countrySel");
-      select.innerHTML = `
-        <option value="ALL">ALL (6ヶ国)</option>
-        <option value="JP">🇯🇵 Japan</option>
-        <option value="CN">🇨🇳 China</option>
-        <option value="KR">🇰🇷 South Korea</option>
-        <option value="US">🇺🇸 United States</option>
-        <option value="GB">🇬🇧 United Kingdom</option>
-        <option value="FR">🇫🇷 France</option>
-      `;
-
-      drawCityMarkers(CITY_BANK);
-      bindEventHandlers();
-    }
-    await ensureDataLoaded();
-    render();
+    console.error("初期化エラー:", error);
+    alert(
+      `アプリケーションの初期化に失敗しました:\n${error.message}\n\nsun-data-fallback.jsonファイルが存在することを確認してください。`
+    );
   }
 }
 

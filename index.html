@@ -22,18 +22,15 @@
       </label>
       <span class="sep"></span>
       <label>日（1-365）:
-        <input id="daySlider" type="range" min="1" max="244" step="1" value="244" />
-        <span id="dayLabel">Day 244 (2025-08-31)</span>
+        <input id="daySlider" type="range" min="1" max="243" step="1" value="243" />
+        <span id="dayLabel">Day 243 (2025-08-31)</span>
       </label>
+      <button id="yearPlayBtn">📅 年間再生</button>
       <label>時刻（UTC 分）:
         <input id="timeSlider" type="range" min="0" max="1439" step="1" value="1380" />
         <span id="timeLabel">23:00 UTC</span>
       </label>
       <button id="playBtn">▶ 再生</button>
-      <button id="yearPlayBtn">📅 年間再生</button>
-      <button id="clearCacheBtn">🗑️ キャッシュクリア</button>
-      <button id="exportDataBtn">📁 データ出力</button>
-      <button id="testApiBtn">🔍 API テスト</button>
     </div>
     <div class="hint">
       都市の夜間点灯表示：<b>当日日没 → 翌日日出</b>の時間帯に点灯。<b>▶ 再生</b>で24時間の変化、<b>📅 年間再生</b>で1年間の変化をアニメーション。<br />17ヶ国49都市のデータを取得、単一国家選択で詳細表示可能。<span id="dataSource">Open-Meteo Archive API</span>から年間天文データを取得。
@@ -44,7 +41,7 @@
   <div id="wrap">
     <svg id="map" viewBox="0 0 1100 600" preserveAspectRatio="xMidYMid meet"></svg>
     <div class="legend">
-      データ: REST Countries API + Open-Meteo Astronomy API / マップ: Natural Earth / 投影: d3.geoNaturalEarth1
+      データ: JSON Fallback + Open-Meteo Astronomy API / マップ: Natural Earth / 投影: d3.geoNaturalEarth1
     </div>
   </div>
 
